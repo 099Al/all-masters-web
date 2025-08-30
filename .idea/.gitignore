@@ -3,3 +3,9 @@
 /workspace.xml
 /.idea/*
 
+/vcs.xml
+/inspectionProfiles/Project_Default.xml
+/inspectionProfiles/profiles_settings.xml
+/modules.xml
+/misc.xml
+/all-masters-web.iml
