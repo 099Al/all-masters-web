@@ -1,0 +1,3 @@
+[submodule "src/database"]
+	path = src/database
+	url = git@github.com:099Al/all-masters-database.git
