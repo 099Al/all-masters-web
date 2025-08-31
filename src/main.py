@@ -8,12 +8,13 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-
+from src.routers.profiles import router_profiles
 from src.routers.static_text import router_text
 
 app = FastAPI()
 
 app.include_router(router_text)
+app.include_router(router_profiles)
 
 
 
