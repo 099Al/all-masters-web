@@ -1,4 +1,7 @@
+import os
 from typing import Union
+
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -34,3 +37,11 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     )
 
 
+if __name__ == "__main__":
+    """
+    Функция находится в src/main.py
+    В путях в роутерах и директориях src не надо прописывать
+    Реагирует на замену в html файлах, на изменения в путях к файлм не реагирует
+    """
+    print(os.getpid())
+    uvicorn.run(app="main:app", reload=True, host='127.0.0.1', port=8000, workers=2)
