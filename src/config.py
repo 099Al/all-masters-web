@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     PASS: str
     DB: str
     ENGINE: str
+    GPT_KEY: str = None
 
 
     #instead load_dotenv()
