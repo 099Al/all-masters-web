@@ -7,6 +7,8 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import FileResponse
+from starlette.staticfiles import StaticFiles
 
 from src.routers.profiles import router_profiles
 from src.routers.static_text import router_text
@@ -15,6 +17,17 @@ app = FastAPI()
 
 app.include_router(router_text)
 app.include_router(router_profiles)
+
+
+# class CachingStaticFiles(StaticFiles):
+#     async def get_response(self, path, scope):
+#         response: FileResponse = await super().get_response(path, scope)
+#         # Кэширование на 30 дней
+#         response.headers["Cache-Control"] = "public, max-age=2592000"
+#         return response
+
+
+app.mount("/images/static", StaticFiles(directory="images/static", follow_symlink=True), name="static")
 
 
 
