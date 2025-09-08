@@ -17,41 +17,33 @@
       text-overflow: ellipsis;
     }
 
-    .about-text {
-      font-size: 14px;
-      position: relative;
-      transition: all 0.3s ease;
-      white-space: pre-wrap;        /* сохраняет переносы из БД */
-      word-break: break-word;       /* ломает длинные слова */
-      overflow-wrap: anywhere;      /* переносит очень длинные строки */
-    }
+.about-wrapper {
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
 
-    .about-text.collapsed-text {
-      display: -webkit-box;
-      -webkit-line-clamp: 4;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: normal;        /* pre-wrap всё равно сохраняем переносы */
-    }
+.about-wrapper.collapsed-text {
+  max-height: 7.5em; /* ограничение для текста + фото */
+}
 
-    .about-text.collapsed-text::after {
-      content: "";
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 1.5em;
-      background: linear-gradient(to top, white, transparent);
-    }
-    .about-toggle {
-      font-size: 13px;
-      color: #007bff;
-      text-decoration: none;
-    }
-    .about-toggle:hover {
-      text-decoration: underline;
-    }
+.about-wrapper.expanded-text {
+  max-height: none;
+}
+
+
+.about-text {
+  font-size: 14px;
+  white-space: pre-wrap;   /* сохраняем переносы */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  margin-bottom: 8px; /* добавляем отступ снизу */
+}
+
+.about-photos {
+  margin-top: 8px; /* небольшой отступ сверху */
+}
+
+
   </style>
 </head>
 <body class="bg-light">
@@ -78,6 +70,7 @@
           {{ s.services }}
         </div>
 
+        <div class="about-wrapper collapsed-text">
          <!-- About блок -->
         <div id="about-{{ s.id }}" class="about-text collapsed-text flex-grow-1 mb-2">
           {{ s.about }}
@@ -98,7 +91,7 @@
   {% endfor %}
 </div>
 
-
+</div>
 
               <button class="btn btn-link p-0 about-toggle"
               type="button"
@@ -210,11 +203,12 @@
   // ищем ближайшую карточку
   const card = button.closest('.card');
   // внутри карточки находим блок about
-  const textEl = card.querySelector('.about-text');
+  const wrapper = card.querySelector('.about-wrapper');
 
-  textEl.classList.toggle("collapsed-text");
+  wrapper.classList.toggle("collapsed-text");
+  wrapper.classList.toggle("expanded-text");
 
-  if (textEl.classList.contains("collapsed-text")) {
+  if (wrapper.classList.contains("collapsed-text")) {
     button.textContent = "Смотреть больше";
   } else {
     button.textContent = "Свернуть";
