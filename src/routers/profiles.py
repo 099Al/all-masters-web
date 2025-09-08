@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from starlette.responses import FileResponse
 
+from src.database.models import SpecialistPhotoType
 from src.database.requests_web import ReqWeb
 import mimetypes
 
@@ -38,7 +39,13 @@ templates = Jinja2Templates(directory="src/templates")
 async def profiles(request: Request):
     req = ReqWeb()
     data_specialists = await req.get_active_specialists_data()
+    data = {}
+    for s in data_specialists:
+        work_photos = await req.get_photo(s.id, SpecialistPhotoType.WORKS)
+        work_photos = work_photos[:6]
+        data[s.id] = work_photos
+
     return templates.TemplateResponse(
         "profiles.html",
-        {"request": request, "title": "Специалисты", "specialists": data_specialists}
+        {"request": request, "title": "Специалисты", "specialists": data_specialists, "spec_photos_map": data}
     )
