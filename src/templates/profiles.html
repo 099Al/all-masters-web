@@ -8,42 +8,36 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
   <style>
-    .profile-card {
-      height: 100px;
+    .about-text {
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
-    .name {
-      white-space: nowrap;
+
+    .about-content {
+      position: relative;
+      transition: max-height 0.35s ease;
       overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-.about-wrapper {
-  overflow: hidden;
-  transition: max-height 0.3s ease;
+    .about-content.clamped {
+  position: relative;
 }
 
-.about-wrapper.collapsed-text {
-  max-height: 7.5em; /* ограничение для текста + фото */
-}
-
-.about-wrapper.expanded-text {
-  max-height: none;
-}
-
-
-.about-text {
-  font-size: 14px;
-  white-space: pre-wrap;   /* сохраняем переносы */
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  margin-bottom: 8px; /* добавляем отступ снизу */
-}
-
-.about-photos {
-  margin-top: 8px; /* небольшой отступ сверху */
+.about-content.clamped::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2.5em; /* примерно высота 2 строк, можно подогнать */
+  background: linear-gradient(to top, white 60%, transparent);
 }
 
 
+    .about-photos { margin-top: 8px; }
+    .modal-content img { object-fit: contain; max-height: 80vh; }
   </style>
 </head>
 <body class="bg-light">
@@ -53,7 +47,7 @@
   {% for s in specialists %}
   <div class="card shadow-sm p-3 mb-3">
     <div class="d-flex align-items-stretch">
-      <!-- Левая колонка: фото + имя -->
+      <!-- Левая колонка -->
       <div class="d-flex flex-column align-items-center me-3">
         <img src="{{ url_for('get_avatar', filename=s.photo_name) }}"
              class="rounded mb-2"
@@ -64,133 +58,69 @@
 
       <!-- Правая колонка -->
       <div class="flex-fill d-flex flex-column">
-        <!-- Услуги сверху -->
+        <!-- Услуги -->
         <div class="services mb-2"
              style="font-size:14px; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis;">
           {{ s.services }}
         </div>
 
-        <div class="about-wrapper collapsed-text">
-         <!-- About блок -->
-        <div id="about-{{ s.id }}" class="about-text collapsed-text flex-grow-1 mb-2">
-          {{ s.about }}
-        </div>
-
-
-          <!-- Превью картинок -->
-{% set work_photos = spec_photos_map.get(s.id, []) %}
-<div class="d-flex flex-wrap gap-2 mt-2">
-  {% for photo in work_photos %}
-    <img src="{{ url_for('works', path=photo) }}"
-         class="img-thumbnail"
-         width="50" height="50"
-         style="cursor:pointer;"
-         data-bs-toggle="modal"
-         data-bs-target="#photoModal-{{ s.id }}"
-         data-index="{{ loop.index0 }}">
-  {% endfor %}
-</div>
-
-</div>
-
-              <button class="btn btn-link p-0 about-toggle"
-              type="button"
-              onclick="toggleAbout(this)">
-        Смотреть больше
-      </button>
-
-
-
-
-<!-- Modal с каруселью -->
-<div class="modal fade" id="photoModal-{{ s.id }}" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content bg-dark">
-      <div class="modal-body p-0">
-        <div id="modalCarousel-{{ s.id }}" class="carousel slide" data-bs-ride="false">
-          <div class="carousel-inner">
-            {% for photo in work_photos %}
-              <div class="carousel-item {% if loop.first %}active{% endif %}">
+        <!-- About (текст + фото) -->
+        <div class="about-wrapper">
+          <div id="about-{{ s.id }}" class="about-content">
+            <div class="about-text">{{ s.about }}</div>
+            {% set work_photos = spec_photos_map.get(s.id, []) %}
+            <div class="about-photos d-flex flex-wrap gap-2 mt-2">
+              {% for photo in work_photos %}
                 <img src="{{ url_for('works', path=photo) }}"
-                     class="d-block w-100"
-                     alt="{{ s.name }}">
-              </div>
-            {% endfor %}
+                     class="img-thumbnail"
+                     width="50" height="50"
+                     style="cursor:pointer;"
+                     data-bs-toggle="modal"
+                     data-bs-target="#photoModal-{{ s.id }}"
+                     data-index="{{ loop.index0 }}">
+              {% endfor %}
+            </div>
           </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel-{{ s.id }}" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon"></span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel-{{ s.id }}" data-bs-slide="next">
-            <span class="carousel-control-next-icon"></span>
-          </button>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
 
-
-
-        <!-- Контакты снизу -->
-        <div class="contacts mt-auto">
-        {% if s.is_available %}
-          {% if s.telegram %}
-            <a href="https://t.me/{{ s.telegram }}" target="_blank" class="me-2 text-decoration-none text-dark">
-              <i class="fab fa-telegram fa-lg"></i>
-            </a>
-          {% endif %}
-          {% if s.instagram %}
-            <a href="https://instagram.com/{{ s.instagram }}" target="_blank" class="me-2 text-decoration-none text-dark">
-              <i class="fab fa-instagram fa-lg"></i>
-            </a>
-          {% endif %}
-          {% if s.phone %}
-            <a href="tel:{{ s.phone }}" class="me-2 text-decoration-none text-dark">
-              <i class="fas fa-phone fa-lg"></i>
-            </a>
-          {% endif %}
-          {% if s.whatsapp %}
-            <a href="https://wa.me/{{ s.whatsapp }}" target="_blank" class="me-2 text-decoration-none text-dark">
-              <i class="fab fa-whatsapp fa-lg"></i>
-            </a>
-          {% endif %}
-          {% if s.email %}
-            <a href="mailto:{{ s.email }}" class="me-2 text-decoration-none text-dark">
-              <i class="fas fa-envelope fa-lg"></i>
-            </a>
-          {% endif %}
-         {% else %}
-        <button class="btn btn-primary btn-sm"
-            data-bs-toggle="modal"
-            data-bs-target="#messageModal-{{ s.id }}">
-          Написать
+        <!-- Кнопка показать/скрыть -->
+        <button class="btn btn-link p-0 about-toggle"
+                type="button"
+                onclick="toggleAbout(this)">
+          Показать больше
         </button>
-      {% endif %}
 
-          <!-- Модальное окно -->
-<div class="modal fade" id="messageModal-{{ s.id }}" tabindex="-1" aria-labelledby="messageModalLabel-{{ s.id }}" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="messageModalLabel-{{ s.id }}">Написать {{ s.name }}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-      </div>
-      <div class="modal-body">
-        <form id="messageForm-{{ s.id }}">
-          <div class="mb-3">
-            <label for="messageText-{{ s.id }}" class="form-label">Сообщение</label>
-            <textarea class="form-control" id="messageText-{{ s.id }}" rows="4" required></textarea>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-        <button type="submit" class="btn btn-primary" form="messageForm-{{ s.id }}">Отправить</button>
-      </div>
-    </div>
-  </div>
-</div>
-
+        <!-- Контакты -->
+        <div class="contacts mt-3">
+          {% if s.is_available %}
+            {% if s.telegram %}
+              <a href="https://t.me/{{ s.telegram }}" target="_blank" class="me-2 text-decoration-none text-dark">
+                <i class="fab fa-telegram fa-lg"></i>
+              </a>
+            {% endif %}
+            {% if s.instagram %}
+              <a href="https://instagram.com/{{ s.instagram }}" target="_blank" class="me-2 text-decoration-none text-dark">
+                <i class="fab fa-instagram fa-lg"></i>
+              </a>
+            {% endif %}
+            {% if s.phone %}
+              <a href="tel:{{ s.phone }}" class="me-2 text-decoration-none text-dark">
+                <i class="fas fa-phone fa-lg"></i>
+              </a>
+            {% endif %}
+            {% if s.whatsapp %}
+              <a href="https://wa.me/{{ s.whatsapp }}" target="_blank" class="me-2 text-decoration-none text-dark">
+                <i class="fab fa-whatsapp fa-lg"></i>
+              </a>
+            {% endif %}
+            {% if s.email %}
+              <a href="mailto:{{ s.email }}" class="me-2 text-decoration-none text-dark">
+                <i class="fas fa-envelope fa-lg"></i>
+              </a>
+            {% endif %}
+          {% else %}
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#messageModal-{{ s.id }}">Написать</button>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -199,51 +129,61 @@
 </div>
 
 <script>
-  function toggleAbout(button) {
-  // ищем ближайшую карточку
+function getLineHeight(el) {
+  const cs = window.getComputedStyle(el);
+  const lh = parseFloat(cs.lineHeight);
+  if (!isNaN(lh)) return lh;
+  const fs = parseFloat(cs.fontSize) || 14;
+  return fs * 1.2;
+}
+
+function adjustAboutWrappers() {
+  document.querySelectorAll('.about-wrapper').forEach(wrapper => {
+    const content = wrapper.querySelector('.about-content');
+    const text = wrapper.querySelector('.about-text');
+    const toggleBtn = wrapper.closest('.card').querySelector('.about-toggle');
+
+    const lineHeight = getLineHeight(text);
+    const maxLines = 5;
+    const maxHeight = lineHeight * maxLines;
+
+    const textHeight = text.scrollHeight;
+    const contentHeight = content.scrollHeight;
+
+    if (textHeight / lineHeight >= maxLines || contentHeight > maxHeight) {
+      content.style.maxHeight = maxHeight + "px";
+      content.classList.add("clamped");
+      toggleBtn.style.display = "";
+    } else {
+      content.style.maxHeight = "";
+      content.classList.remove("clamped");
+      toggleBtn.style.display = "none";
+    }
+  });
+}
+
+function toggleAbout(button) {
   const card = button.closest('.card');
-  // внутри карточки находим блок about
-  const wrapper = card.querySelector('.about-wrapper');
+  const content = card.querySelector('.about-content');
 
-  wrapper.classList.toggle("collapsed-text");
-  wrapper.classList.toggle("expanded-text");
-
-  if (wrapper.classList.contains("collapsed-text")) {
-    button.textContent = "Смотреть больше";
-  } else {
+  if (content.classList.contains("clamped")) {
+    content.style.maxHeight = "";
+    content.classList.remove("clamped");
     button.textContent = "Свернуть";
+  } else {
+    const text = content.querySelector('.about-text');
+    const lineHeight = getLineHeight(text);
+    const maxLines = 5;
+    const maxHeight = lineHeight * maxLines;
+    content.style.maxHeight = maxHeight + "px";
+    content.classList.add("clamped");
+    button.textContent = "Показать больше";
   }
 }
 
-  // скрыть кнопку, если текста мало
-  document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll(".about-text").forEach(el => {
-      const toggleBtn = el.closest(".card").querySelector(".about-toggle");
-      const fullHeight = el.scrollHeight;
-      const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight);
-      const maxHeight = lineHeight * 4;
-
-      if (fullHeight <= maxHeight) {
-        toggleBtn.style.display = "none"; // текст помещается → кнопка не нужна
-      }
-    });
-  });
+window.addEventListener("load", adjustAboutWrappers);
+window.addEventListener("resize", adjustAboutWrappers);
 </script>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll("[data-bs-target^='#photoModal']").forEach(img => {
-    img.addEventListener("click", function() {
-      const modalId = this.getAttribute("data-bs-target");
-      const index = this.getAttribute("data-index");
-      const carousel = document.querySelector(modalId + " .carousel");
-      const bsCarousel = bootstrap.Carousel.getInstance(carousel) || new bootstrap.Carousel(carousel);
-      bsCarousel.to(index);
-    });
-  });
-});
-</script>
-
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
