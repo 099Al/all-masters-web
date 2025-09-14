@@ -28,6 +28,7 @@ app.include_router(router_profiles)
 
 
 app.mount("/images/static", StaticFiles(directory="images/static", follow_symlink=True), name="static")
+app.mount("/images/works", StaticFiles(directory="images/works", follow_symlink=True), name="works")
 
 
 
