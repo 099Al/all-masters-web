@@ -211,6 +211,45 @@ window.addEventListener("load", adjustAboutWrappers);
 window.addEventListener("resize", adjustAboutWrappers);
 </script>
 
+
+<script>
+document.querySelectorAll("[id^=messageForm-]").forEach(form => {
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const specialistId = this.id.split("-")[1];
+    const text = this.querySelector("textarea").value;
+
+    // ⚡ user_id нужно получить от текущего авторизованного пользователя
+    const userId = "{{ current_user.id }}";
+
+    const response = await fetch("/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        specialist_id: specialistId,
+        message: text
+      })
+    });
+
+    const data = await response.json();
+    if (data.status === "ok") {
+      alert("Сообщение отправлено!");
+      this.reset();
+
+      // закрываем модалку
+      const modalEl = this.closest(".modal");
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      modal.hide();
+    } else {
+      alert("Ошибка при отправке!");
+    }
+  });
+});
+</script>
+
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
