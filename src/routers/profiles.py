@@ -109,7 +109,7 @@ async def create_user_message(
         user_id=msg.user_id,         #TODO: # берём из JWT
         specialist_id=msg.specialist_id,
         message=msg.message,
-        created_at=datetime.now(UTC_PLUS_5).replace(tzinfo=None),
+        created_at=datetime.now(UTC_PLUS_5).replace(microsecond=0).replace(tzinfo=None),
         is_valid=None,
     )
 
