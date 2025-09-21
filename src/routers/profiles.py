@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from fastapi.templating import Jinja2Templates
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from starlette.responses import FileResponse
@@ -15,11 +16,12 @@ from starlette.responses import FileResponse
 from src.config_paramaters import UTC_PLUS_5
 from src.database.models import SpecialistPhotoType, models
 from src.database.requests_web import ReqWeb
-from src.database.connect import get_db
+from src.database.connect import DataBase
 
 import mimetypes
 
 from src.schemas import schemas
+from src.schemas.schemas import UserMessageCreate
 
 router_profiles = APIRouter(
     prefix="/profiles",
@@ -59,16 +61,75 @@ async def profiles(request: Request):
 
 
 
-@router_profiles.post("/messages")
-def create_user_message(msg: schemas.UserMessageCreate, db: Session = Depends(get_db)):
+# @router_profiles.post("/messages")
+# async def create_user_message(
+#     msg: schemas.UserMessageCreate,
+#     db: AsyncSession = Depends(get_db),
+#     #current_user: models.User = Depends(get_current_user),
+# ):
+#     print("RAW MESSAGE:", msg.dict())
     db_msg = models.UserMessage(
-        user_id=msg.user_id,
+        user_id=msg.user_id,         #TODO: # берём из JWT
         specialist_id=msg.specialist_id,
         message=msg.message,
         created_at=datetime.now(UTC_PLUS_5),
-        is_valid=None
+        is_valid=None,
     )
+
+    print(db_msg)
+
     db.add(db_msg)
-    db.commit()
-    db.refresh(db_msg)
+    await db.commit()
+    await db.refresh(db_msg)
+
     return {"status": "ok", "id": db_msg.id}
+
+#
+# @router_profiles.post("/messages")
+# async def create_user_message(
+#     request: Request,
+#     db: AsyncSession = Depends(db.get_db),
+# ):
+#     raw = await request.body()
+#     print("RAW REQUEST BODY:", raw.decode(), flush=True)
+#
+#     return {"status": "debug"}
+
+from fastapi import Request
+import sys
+
+db = DataBase()
+
+@router_profiles.post("/messages")
+async def create_user_message(
+    msg: schemas.UserMessageCreate,
+    db: AsyncSession = Depends(db.get_db),
+):
+    db_msg = models.UserMessage(
+        user_id=msg.user_id,         #TODO: # берём из JWT
+        specialist_id=msg.specialist_id,
+        message=msg.message,
+        created_at=datetime.now(UTC_PLUS_5).replace(tzinfo=None),
+        is_valid=None,
+    )
+
+    print(db_msg)
+
+    db.add(db_msg)
+    await db.commit()
+    await db.refresh(db_msg)
+
+    return {"status": "ok", "id": db_msg.id}
+
+
+
+@router_profiles.post("/log_alert")
+async def log_alert(req: Request):
+    data = await req.json()
+    message = data.get("message", "")
+    timestamp = datetime.now().isoformat()
+    print('!!!!!!!!Alert!!!!!!!!!!!!!!!!!')
+    with open("logs/alerts.txt", "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] {message}\n")
+
+    return {"status": "ok"}
