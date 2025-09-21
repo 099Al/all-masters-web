@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from urllib import request
 
@@ -7,13 +7,14 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
 
 from fastapi.templating import Jinja2Templates
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+
 from starlette.responses import FileResponse
 
-from src.config_paramaters import UTC_PLUS_5
+from src.config_paramaters import UTC_PLUS_5, MESSAGES_TO_SPECIALISTS_LIMIT
 from src.database.models import SpecialistPhotoType, models
 from src.database.requests_web import ReqWeb
 from src.database.connect import DataBase
@@ -68,21 +69,21 @@ async def profiles(request: Request):
 #     #current_user: models.User = Depends(get_current_user),
 # ):
 #     print("RAW MESSAGE:", msg.dict())
-    db_msg = models.UserMessage(
-        user_id=msg.user_id,         #TODO: # берём из JWT
-        specialist_id=msg.specialist_id,
-        message=msg.message,
-        created_at=datetime.now(UTC_PLUS_5),
-        is_valid=None,
-    )
-
-    print(db_msg)
-
-    db.add(db_msg)
-    await db.commit()
-    await db.refresh(db_msg)
-
-    return {"status": "ok", "id": db_msg.id}
+#     db_msg = models.UserMessage(
+#         user_id=msg.user_id,         #TODO: # берём из JWT
+#         specialist_id=msg.specialist_id,
+#         message=msg.message,
+#         created_at=datetime.now(UTC_PLUS_5),
+#         is_valid=None,
+#     )
+#
+#     print(db_msg)
+#
+#     db.add(db_msg)
+#     await db.commit()
+#     await db.refresh(db_msg)
+#
+#     return {"status": "ok", "id": db_msg.id}
 
 #
 # @router_profiles.post("/messages")
@@ -105,6 +106,21 @@ async def create_user_message(
     msg: schemas.UserMessageCreate,
     db: AsyncSession = Depends(db.get_db),
 ):
+    # начало текущего часа
+    start_of_hour = datetime.now(UTC_PLUS_5).replace(minute=0, second=0, microsecond=0).replace(tzinfo=None)
+    end_of_hour = start_of_hour + timedelta(hours=1)
+
+
+    req = ReqWeb()
+    cnt_messages = await req.get_cnt_messages(msg.user_id, start_of_hour, end_of_hour)
+    if  cnt_messages >= MESSAGES_TO_SPECIALISTS_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Слишком много сообщений, попробуйте позже."
+        )
+
+
+
     db_msg = models.UserMessage(
         user_id=msg.user_id,         #TODO: # берём из JWT
         specialist_id=msg.specialist_id,
