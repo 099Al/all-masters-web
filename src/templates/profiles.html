@@ -311,7 +311,9 @@ document.addEventListener("DOMContentLoaded", () => {
           bootstrap.Modal.getInstance(this.closest(".modal")).hide();
         } else {
           const err = await resp.json();
-          alert("Ошибка: " + JSON.stringify(err, null, 2));
+          //alert("Ошибка: " + JSON.stringify(err, null, 2));
+          const message = err.detail ? err.detail : JSON.stringify(err, null, 2);
+          alert("Ошибка: " + err.detail);
         }
       } catch (err) {
         console.error("Ошибка отправки:", err);
