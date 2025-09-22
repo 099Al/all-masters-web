@@ -271,57 +271,140 @@ document.addEventListener("DOMContentLoaded", () => {
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const tg = window.Telegram.WebApp;
-  const initData = tg.initDataUnsafe;
-  const userId = initData.user.id;
+  const initData = tg.initDataUnsafe || {};
+  const userId = initData.user?.id;
 
+  // Неблокирующая нотификация (временный "тост")
+  function showToast(text, timeout = 3000) {
+    const el = document.createElement("div");
+    el.textContent = text;
+    Object.assign(el.style, {
+      position: "fixed",
+      right: "20px",
+      bottom: "20px",
+      zIndex: 2147483647,
+      background: "rgba(0,0,0,0.85)",
+      color: "white",
+      padding: "10px 14px",
+      borderRadius: "6px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+      transition: "opacity .25s",
+      opacity: "1",
+      maxWidth: "320px",
+      fontSize: "14px",
+    });
+    document.body.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = "0";
+      el.addEventListener("transitionend", () => el.remove(), { once: true });
+    }, timeout);
+  }
+
+  // focus textarea при открытии модалки; снимаем возможные disabled при закрытии
+  document.querySelectorAll(".modal").forEach(modalEl => {
+    modalEl.addEventListener("shown.bs.modal", () => {
+      const ta = modalEl.querySelector("textarea");
+      if (ta) ta.focus();
+    });
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      const ta = modalEl.querySelector("textarea");
+      if (ta) {
+        ta.disabled = false;
+        // если нужно — очищать:
+        // ta.value = "";
+      }
+      // Удаляем возможные лишние backdrops (на всякий случай)
+      document.querySelectorAll(".modal-backdrop").forEach(b => b.remove());
+    });
+  });
+
+  // Обработчики форм
   document.querySelectorAll("form[id^='messageForm']").forEach(form => {
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
 
-      const specId = this.id.split("-")[1];  // из messageForm-ID
+      const specId = Number(this.id.split("-")[1]);
       const textarea = this.querySelector("textarea");
+      if (!textarea) return;
+
       const message = textarea.value.trim();
+      if (!message) {
+        showToast("Введите сообщение");
+        textarea.focus();
+        return;
+      }
 
-      //logAlertToServer("specId: " + specId);
-      //logAlertToServer("userId:" + userId);
-      //logAlertToServer("message: " + message);
-
-      if (!message) return;
-
-      //logAlertToServer("User ID: " + userId);
-      //logAlertToServer("INFO: " + JSON.stringify(window.Telegram.WebApp.initDataUnsafe, null, 2));
-
+      // Защита от двойного submit
+      const submitBtn = document.querySelector(`button[form="${this.id}"]`);
+      if (submitBtn) submitBtn.setAttribute("disabled", "disabled");
+      textarea.setAttribute("disabled", "disabled"); // временно заблокируем ввод
 
       try {
         const resp = await fetch("/profiles/messages", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             user_id: userId,
-            specialist_id: parseInt(specId, 10),
+            specialist_id: specId,
             message: message
           })
         });
 
         if (resp.ok) {
-          alert("Сообщение отправлено!");
-          textarea.value = "";
-          bootstrap.Modal.getInstance(this.closest(".modal")).hide();
+          showToast("Сообщение отправлено!");
+          this.reset();
+
+          // снимаем блокировку поля и кнопки, чтобы можно было сразу писать ещё
+          textarea.removeAttribute("disabled");
+          if (submitBtn) submitBtn.removeAttribute("disabled");
+
+          // скрываем модалку
+          const modalEl = this.closest(".modal");
+          if (modalEl) {
+            let modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (!modalInstance) modalInstance = new bootstrap.Modal(modalEl);
+            modalInstance.hide();
+          }
         } else {
-          const err = await resp.json();
-          //alert("Ошибка: " + JSON.stringify(err, null, 2));
-          const message = err.detail ? err.detail : JSON.stringify(err, null, 2);
-          alert("Ошибка: " + err.detail);
+          // формируем читаемое сообщение об ошибке
+          let err;
+          try { err = await resp.json(); } catch (e) { err = null; }
+          let msgText = "Неизвестная ошибка";
+          if (err) {
+            if (err.detail) {
+              // detail может быть строкой, массивом или объектом
+              if (Array.isArray(err.detail)) msgText = err.detail.join("; ");
+              else msgText = String(err.detail);
+            } else {
+              msgText = JSON.stringify(err);
+            }
+          }
+          showToast("Ошибка: " + msgText);
+          // оставляем textarea доступной, чтобы пользователь мог исправить
+          textarea.removeAttribute("disabled");
+          if (submitBtn) submitBtn.removeAttribute("disabled");
+          textarea.focus();
         }
-      } catch (err) {
-        console.error("Ошибка отправки:", err);
+      } catch (networkErr) {
+        console.error("Ошибка отправки:", networkErr);
+        showToast("Ошибка сети. Попробуйте позже.");
+        textarea.removeAttribute("disabled");
+        if (submitBtn) submitBtn.removeAttribute("disabled");
+        textarea.focus();
+      } finally {
+        // в finally для уверенности — если модалка закрыта, то ничего не делаем; если осталась открытой — разблокируем
+        const modalEl = this.closest(".modal");
+        const isModalShown = modalEl && modalEl.classList.contains("show");
+        if (isModalShown) {
+          textarea.removeAttribute("disabled");
+          if (submitBtn) submitBtn.removeAttribute("disabled");
+        }
       }
     });
   });
 });
 </script>
+
 
 
 
