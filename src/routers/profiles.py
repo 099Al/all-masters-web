@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from urllib import request
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Response
 from fastapi.responses import HTMLResponse
 
 from fastapi.templating import Jinja2Templates
@@ -211,6 +211,20 @@ async def update_user_message(
         message=row["message"],
         created_at=row["created_at"],
     )
+
+
+@router_profiles.delete("/messages/{msg_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_message(
+    msg_id: int,
+    session: AsyncSession = Depends(db.get_db),
+):
+    msg = await session.get(models.UserMessage, msg_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    await session.delete(msg)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router_profiles.post("/log_alert")
 async def log_alert(req: Request):
