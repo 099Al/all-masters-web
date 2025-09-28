@@ -265,45 +265,70 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 
 
+<script>
+  async function fetchJson(url, options) {
+  const resp = await fetch(url, options);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`${resp.status} ${resp.statusText}${text ? " — " + text : ""}`);
+  }
+  return resp.json();
+}
+</script>
 
-
+<script>
+  window.USER_ID_FROM_SERVER = 988269770;
+</script>
 
 
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  const tg = window.Telegram.WebApp;
-  const userId = tg.initDataUnsafe.user.id;
+  const tg = window.Telegram?.WebApp;
+  tg?.ready();
+  const userId = tg?.initDataUnsafe?.user?.id ?? window.USER_ID_FROM_SERVER ?? null;
+
+  // helper to render a message LI safely (no innerHTML for text)
+  function renderMessage(list, msg, { prepend = false } = {}) {
+    const li = document.createElement("li");
+    li.className = "list-group-item d-flex justify-content-between align-items-center";
+    li.dataset.id = msg.id;
+
+    const span = document.createElement("span");
+    span.className = "msg-text";
+    span.textContent = msg.message ?? msg.text ?? msg.content ?? "";
+
+    const actions = document.createElement("div");
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn btn-sm btn-outline-secondary edit-btn";
+    editBtn.textContent = "✏️";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn btn-sm btn-outline-danger delete-btn";
+    delBtn.textContent = "🗑️";
+
+    actions.append(editBtn, delBtn);
+    li.append(span, actions);
+
+    if (prepend) list.prepend(li); else list.appendChild(li);
+  }
 
   // === Открытие модалки -> загрузка сообщений ===
   document.querySelectorAll("[id^='messagesModal-']").forEach(modal => {
     modal.addEventListener("show.bs.modal", async function () {
-      const specId = this.id.split("-")[1];
+      const specId = this.dataset.specId || this.id.split("-")[1];
       const list = this.querySelector(`#messagesList-${specId}`);
 
       list.innerHTML = "<li class='list-group-item'>Загрузка...</li>";
 
       try {
-        const resp = await fetch(`/profiles/messages?user_id=${userId}&specialist_id=${specId}`);
-        if (!resp.ok) throw new Error(resp.statusText);
-
-        const messages = await resp.json();
+        // Используем реальный список: GET /profiles/messages?user_id=&specialist_id=
+        const url = `/profiles/messages?user_id=${encodeURIComponent(userId)}&specialist_id=${encodeURIComponent(specId)}`;
+        const messages = await fetchJson(url);
         list.innerHTML = "";
-
-        messages.forEach(msg => {
-          const li = document.createElement("li");
-          li.className = "list-group-item d-flex justify-content-between align-items-center";
-          li.dataset.id = msg.id;
-          li.innerHTML = `
-            <span class="msg-text">${msg.message}</span>
-            <div>
-              <button class="btn btn-sm btn-outline-secondary edit-btn">✏️</button>
-              <button class="btn btn-sm btn-outline-danger delete-btn">🗑️</button>
-            </div>
-          `;
-          list.appendChild(li);
-        });
+        messages.forEach(m => renderMessage(list, m));
       } catch (err) {
         list.innerHTML = `<li class='list-group-item text-danger'>Ошибка загрузки: ${err.message || err}</li>`;
       }
@@ -311,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // === Отправка нового сообщения ===
-  document.querySelectorAll("form[id^='messageForm']").forEach(form => {
+  document.querySelectorAll("form[id^='messageForm-']").forEach(form => {
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
       const specId = this.id.split("-")[1];
@@ -320,72 +345,38 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!message) return;
 
       try {
-        const resp = await fetch("/profiles/messages", {
+        const newMsg = await fetchJson("/profiles/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId, specialist_id: parseInt(specId), message })
+          body: JSON.stringify({ user_id: userId, specialist_id: Number(specId), message })
         });
 
-        if (resp.ok) {
-          const newMsg = await resp.json();
-          const list = document.querySelector(`#messagesList-${specId}`);
-          const li = document.createElement("li");
-          li.className = "list-group-item d-flex justify-content-between align-items-center";
-          li.dataset.id = newMsg.id;
-          li.innerHTML = `
-            <span class="msg-text">${newMsg.message}</span>
-            <div>
-              <button class="btn btn-sm btn-outline-secondary edit-btn">✏️</button>
-              <button class="btn btn-sm btn-outline-danger delete-btn">🗑️</button>
-            </div>
-          `;
-          list.prepend(li);   // 👈 новые сообщения сверху
-          textarea.value = "";
-        } else {
-          let msg;
-          try {
-            const err = await resp.json();
-            console.log("Ошибка с сервера:", err);
-            msg = err.detail || err.message || JSON.stringify(err);
-          } catch {
-            msg = resp.statusText;
-          }
-          alert("Ошибка: " + msg);
-        }
+        const list = document.querySelector(`#messagesList-${specId}`);
+        renderMessage(list, newMsg, { prepend: true });
+        textarea.value = "";
       } catch (err) {
-        alert("Ошибка сети: " + (err.message || err));
+        alert("Ошибка: " + err.message);
       }
     });
   });
 
-  // === Делегирование событий: редактирование / удаление ===
-  document.body.addEventListener("click", async function (e) {
-    // --- Удаление ---
+  // === Делегирование событий: удаление / редактирование ===
+  document.body.addEventListener("click", async (e) => {
+    // Удаление
     if (e.target.classList.contains("delete-btn")) {
       const li = e.target.closest("li");
       const msgId = li.dataset.id;
       if (!confirm("Удалить сообщение?")) return;
-
       try {
         const resp = await fetch(`/profiles/messages/${msgId}`, { method: "DELETE" });
-        if (resp.ok) {
-          li.remove();
-        } else {
-          let msg;
-          try {
-            const err = await resp.json();
-            msg = err.detail || JSON.stringify(err);
-          } catch {
-            msg = resp.statusText;
-          }
-          alert("Ошибка удаления: " + msg);
-        }
+        if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+        li.remove();
       } catch (err) {
-        alert("Ошибка сети при удалении: " + (err.message || err));
+        alert("Ошибка удаления: " + (err.message || err));
       }
     }
 
-    // --- Редактирование ---
+    // Редактирование (оставил твою логику, только аккуратнее со вставками текста)
     if (e.target.classList.contains("edit-btn")) {
       const li = e.target.closest("li");
       const msgId = li.dataset.id;
@@ -410,45 +401,30 @@ document.addEventListener("DOMContentLoaded", () => {
       oldEditBtn.replaceWith(saveBtn);
       saveBtn.insertAdjacentElement("afterend", cancelBtn);
 
-      // фокус на textarea
       textarea.focus();
       textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 
-      // --- Сохранение ---
       saveBtn.addEventListener("click", async () => {
         const newText = textarea.value.trim();
         if (!newText) return;
-
         try {
           const resp = await fetch(`/profiles/messages/${msgId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: newText })
           });
-
-          if (resp.ok) {
-            const newSpan = document.createElement("span");
-            newSpan.className = "msg-text";
-            newSpan.textContent = newText;
-            textarea.replaceWith(newSpan);
-            saveBtn.replaceWith(oldEditBtn);
-            cancelBtn.remove();
-          } else {
-            let msg;
-            try {
-              const err = await resp.json();
-              msg = err.detail || JSON.stringify(err);
-            } catch {
-              msg = resp.statusText;
-            }
-            alert("Ошибка редактирования: " + msg);
-          }
+          if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+          const newSpan = document.createElement("span");
+          newSpan.className = "msg-text";
+          newSpan.textContent = newText;
+          textarea.replaceWith(newSpan);
+          saveBtn.replaceWith(oldEditBtn);
+          cancelBtn.remove();
         } catch (err) {
-          alert("Ошибка сети при редактировании: " + (err.message || err));
+          alert("Ошибка редактирования: " + (err.message || err));
         }
       });
 
-      // --- Отмена ---
       cancelBtn.addEventListener("click", () => {
         const newSpan = document.createElement("span");
         newSpan.className = "msg-text";
