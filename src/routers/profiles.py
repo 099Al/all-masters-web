@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from fastapi.templating import Jinja2Templates
 from fastapi import HTTPException, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -177,6 +178,39 @@ async def create_user_message(
     )
 
 
+@router_profiles.put("/messages/{msg_id}", response_model=schemas.MessageOut)
+async def update_user_message(
+    msg_id: int,
+    payload: schemas.MessageUpdate,          # message: str
+    session: AsyncSession = Depends(db.get_db),
+):
+    stmt = (
+        update(models.UserMessage)
+        .where(models.UserMessage.id == msg_id)
+        .values(message=payload.message)
+        .returning(
+            models.UserMessage.id,
+            models.UserMessage.user_id,
+            models.UserMessage.specialist_id,
+            models.UserMessage.message,
+            models.UserMessage.created_at,
+        )
+    )
+
+    res = await session.execute(stmt)
+    row = res.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    await session.commit()  # <-- без этого изменения не сохранятся!
+
+    return schemas.MessageOut(
+        id=row["id"],
+        user_id=row["user_id"],
+        specialist_id=row["specialist_id"],
+        message=row["message"],
+        created_at=row["created_at"],
+    )
 
 @router_profiles.post("/log_alert")
 async def log_alert(req: Request):
