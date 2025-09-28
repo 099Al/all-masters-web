@@ -154,32 +154,35 @@
               </a>
             {% endif %}
           {% else %}
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#messageModal-{{ s.id }}">Написать</button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#messagesModal-{{ s.id }}">Написать</button>
           {% endif %}
 
 <!-- Модальное окно -->
-<div class="modal fade" id="messageModal-{{ s.id }}" tabindex="-1" aria-labelledby="messageModalLabel-{{ s.id }}" aria-hidden="true">
-  <div class="modal-dialog">
+<div class="modal fade" id="messagesModal-{{ s.id }}" data-spec-id="{{ s.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="messageModalLabel-{{ s.id }}">Написать {{ s.name }}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        <h5 class="modal-title">Сообщения</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <form id="messageForm-{{ s.id }}">
-          <div class="mb-3">
-            <label for="messageText-{{ s.id }}" class="form-label">Сообщение</label>
-            <textarea class="form-control" id="messageText-{{ s.id }}" rows="4" required></textarea>
-          </div>
-        </form>
+        <ul id="messagesList-{{ s.id }}" class="list-group">
+          <!-- сюда будут подгружаться сообщения -->
+        </ul>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-        <button type="submit" class="btn btn-primary" form="messageForm-{{ s.id }}">Отправить</button>
+        <form id="messageForm-{{ s.id }}" class="w-100 d-flex">
+          <textarea class="form-control me-2" rows="1" placeholder="Введите сообщение..."></textarea>
+          <button type="submit" class="btn btn-primary">Отправить</button>
+        </form>
       </div>
     </div>
   </div>
 </div>
+
+
+
+
 
 
         </div>
@@ -271,139 +274,194 @@ document.addEventListener("DOMContentLoaded", () => {
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const tg = window.Telegram.WebApp;
-  const initData = tg.initDataUnsafe || {};
-  const userId = initData.user?.id;
+  const userId = tg.initDataUnsafe.user.id;
 
-  // Неблокирующая нотификация (временный "тост")
-  function showToast(text, timeout = 3000) {
-    const el = document.createElement("div");
-    el.textContent = text;
-    Object.assign(el.style, {
-      position: "fixed",
-      right: "20px",
-      bottom: "20px",
-      zIndex: 2147483647,
-      background: "rgba(0,0,0,0.85)",
-      color: "white",
-      padding: "10px 14px",
-      borderRadius: "6px",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-      transition: "opacity .25s",
-      opacity: "1",
-      maxWidth: "320px",
-      fontSize: "14px",
-    });
-    document.body.appendChild(el);
-    setTimeout(() => {
-      el.style.opacity = "0";
-      el.addEventListener("transitionend", () => el.remove(), { once: true });
-    }, timeout);
-  }
+  // === Открытие модалки -> загрузка сообщений ===
+  document.querySelectorAll("[id^='messagesModal-']").forEach(modal => {
+    modal.addEventListener("show.bs.modal", async function () {
+      const specId = this.id.split("-")[1];
+      const list = this.querySelector(`#messagesList-${specId}`);
 
-  // focus textarea при открытии модалки; снимаем возможные disabled при закрытии
-  document.querySelectorAll(".modal").forEach(modalEl => {
-    modalEl.addEventListener("shown.bs.modal", () => {
-      const ta = modalEl.querySelector("textarea");
-      if (ta) ta.focus();
-    });
-    modalEl.addEventListener("hidden.bs.modal", () => {
-      const ta = modalEl.querySelector("textarea");
-      if (ta) {
-        ta.disabled = false;
-        // если нужно — очищать:
-        // ta.value = "";
+      list.innerHTML = "<li class='list-group-item'>Загрузка...</li>";
+
+      try {
+        const resp = await fetch(`/profiles/messages?user_id=${userId}&specialist_id=${specId}`);
+        if (!resp.ok) throw new Error(resp.statusText);
+
+        const messages = await resp.json();
+        list.innerHTML = "";
+
+        messages.forEach(msg => {
+          const li = document.createElement("li");
+          li.className = "list-group-item d-flex justify-content-between align-items-center";
+          li.dataset.id = msg.id;
+          li.innerHTML = `
+            <span class="msg-text">${msg.message}</span>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary edit-btn">✏️</button>
+              <button class="btn btn-sm btn-outline-danger delete-btn">🗑️</button>
+            </div>
+          `;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        list.innerHTML = `<li class='list-group-item text-danger'>Ошибка загрузки: ${err.message || err}</li>`;
       }
-      // Удаляем возможные лишние backdrops (на всякий случай)
-      document.querySelectorAll(".modal-backdrop").forEach(b => b.remove());
     });
   });
 
-  // Обработчики форм
+  // === Отправка нового сообщения ===
   document.querySelectorAll("form[id^='messageForm']").forEach(form => {
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
-
-      const specId = Number(this.id.split("-")[1]);
+      const specId = this.id.split("-")[1];
       const textarea = this.querySelector("textarea");
-      if (!textarea) return;
-
       const message = textarea.value.trim();
-      if (!message) {
-        showToast("Введите сообщение");
-        textarea.focus();
-        return;
-      }
-
-      // Защита от двойного submit
-      const submitBtn = document.querySelector(`button[form="${this.id}"]`);
-      if (submitBtn) submitBtn.setAttribute("disabled", "disabled");
-      textarea.setAttribute("disabled", "disabled"); // временно заблокируем ввод
+      if (!message) return;
 
       try {
         const resp = await fetch("/profiles/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userId,
-            specialist_id: specId,
-            message: message
-          })
+          body: JSON.stringify({ user_id: userId, specialist_id: parseInt(specId), message })
         });
 
         if (resp.ok) {
-          showToast("Сообщение отправлено!");
-          this.reset();
-
-          // снимаем блокировку поля и кнопки, чтобы можно было сразу писать ещё
-          textarea.removeAttribute("disabled");
-          if (submitBtn) submitBtn.removeAttribute("disabled");
-
-          // скрываем модалку
-          const modalEl = this.closest(".modal");
-          if (modalEl) {
-            let modalInstance = bootstrap.Modal.getInstance(modalEl);
-            if (!modalInstance) modalInstance = new bootstrap.Modal(modalEl);
-            modalInstance.hide();
-          }
+          const newMsg = await resp.json();
+          const list = document.querySelector(`#messagesList-${specId}`);
+          const li = document.createElement("li");
+          li.className = "list-group-item d-flex justify-content-between align-items-center";
+          li.dataset.id = newMsg.id;
+          li.innerHTML = `
+            <span class="msg-text">${newMsg.message}</span>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary edit-btn">✏️</button>
+              <button class="btn btn-sm btn-outline-danger delete-btn">🗑️</button>
+            </div>
+          `;
+          list.prepend(li);   // 👈 новые сообщения сверху
+          textarea.value = "";
         } else {
-          // формируем читаемое сообщение об ошибке
-          let err;
-          try { err = await resp.json(); } catch (e) { err = null; }
-          let msgText = "Неизвестная ошибка";
-          if (err) {
-            if (err.detail) {
-              // detail может быть строкой, массивом или объектом
-              if (Array.isArray(err.detail)) msgText = err.detail.join("; ");
-              else msgText = String(err.detail);
-            } else {
-              msgText = JSON.stringify(err);
-            }
+          let msg;
+          try {
+            const err = await resp.json();
+            console.log("Ошибка с сервера:", err);
+            msg = err.detail || err.message || JSON.stringify(err);
+          } catch {
+            msg = resp.statusText;
           }
-          showToast("Ошибка: " + msgText);
-          // оставляем textarea доступной, чтобы пользователь мог исправить
-          textarea.removeAttribute("disabled");
-          if (submitBtn) submitBtn.removeAttribute("disabled");
-          textarea.focus();
+          alert("Ошибка: " + msg);
         }
-      } catch (networkErr) {
-        console.error("Ошибка отправки:", networkErr);
-        showToast("Ошибка сети. Попробуйте позже.");
-        textarea.removeAttribute("disabled");
-        if (submitBtn) submitBtn.removeAttribute("disabled");
-        textarea.focus();
-      } finally {
-        // в finally для уверенности — если модалка закрыта, то ничего не делаем; если осталась открытой — разблокируем
-        const modalEl = this.closest(".modal");
-        const isModalShown = modalEl && modalEl.classList.contains("show");
-        if (isModalShown) {
-          textarea.removeAttribute("disabled");
-          if (submitBtn) submitBtn.removeAttribute("disabled");
-        }
+      } catch (err) {
+        alert("Ошибка сети: " + (err.message || err));
       }
     });
   });
+
+  // === Делегирование событий: редактирование / удаление ===
+  document.body.addEventListener("click", async function (e) {
+    // --- Удаление ---
+    if (e.target.classList.contains("delete-btn")) {
+      const li = e.target.closest("li");
+      const msgId = li.dataset.id;
+      if (!confirm("Удалить сообщение?")) return;
+
+      try {
+        const resp = await fetch(`/profiles/messages/${msgId}`, { method: "DELETE" });
+        if (resp.ok) {
+          li.remove();
+        } else {
+          let msg;
+          try {
+            const err = await resp.json();
+            msg = err.detail || JSON.stringify(err);
+          } catch {
+            msg = resp.statusText;
+          }
+          alert("Ошибка удаления: " + msg);
+        }
+      } catch (err) {
+        alert("Ошибка сети при удалении: " + (err.message || err));
+      }
+    }
+
+    // --- Редактирование ---
+    if (e.target.classList.contains("edit-btn")) {
+      const li = e.target.closest("li");
+      const msgId = li.dataset.id;
+      const textSpan = li.querySelector(".msg-text");
+      const oldText = textSpan.textContent;
+
+      const textarea = document.createElement("textarea");
+      textarea.className = "form-control me-2";
+      textarea.value = oldText;
+
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "btn btn-sm btn-success me-1";
+      saveBtn.textContent = "💾";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "btn btn-sm btn-secondary";
+      cancelBtn.textContent = "❌";
+
+      const oldEditBtn = e.target;
+
+      textSpan.replaceWith(textarea);
+      oldEditBtn.replaceWith(saveBtn);
+      saveBtn.insertAdjacentElement("afterend", cancelBtn);
+
+      // фокус на textarea
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+      // --- Сохранение ---
+      saveBtn.addEventListener("click", async () => {
+        const newText = textarea.value.trim();
+        if (!newText) return;
+
+        try {
+          const resp = await fetch(`/profiles/messages/${msgId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: newText })
+          });
+
+          if (resp.ok) {
+            const newSpan = document.createElement("span");
+            newSpan.className = "msg-text";
+            newSpan.textContent = newText;
+            textarea.replaceWith(newSpan);
+            saveBtn.replaceWith(oldEditBtn);
+            cancelBtn.remove();
+          } else {
+            let msg;
+            try {
+              const err = await resp.json();
+              msg = err.detail || JSON.stringify(err);
+            } catch {
+              msg = resp.statusText;
+            }
+            alert("Ошибка редактирования: " + msg);
+          }
+        } catch (err) {
+          alert("Ошибка сети при редактировании: " + (err.message || err));
+        }
+      });
+
+      // --- Отмена ---
+      cancelBtn.addEventListener("click", () => {
+        const newSpan = document.createElement("span");
+        newSpan.className = "msg-text";
+        newSpan.textContent = oldText;
+        textarea.replaceWith(newSpan);
+        saveBtn.replaceWith(oldEditBtn);
+        cancelBtn.remove();
+      });
+    }
+  });
 });
 </script>
+
 
 
 
