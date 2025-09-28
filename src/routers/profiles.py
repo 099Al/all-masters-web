@@ -22,7 +22,7 @@ from src.database.connect import DataBase
 import mimetypes
 
 from src.schemas import schemas
-from src.schemas.schemas import UserMessageCreate
+from src.schemas.schemas import MessageCreate
 
 router_profiles = APIRouter(
     prefix="/profiles",
@@ -101,13 +101,46 @@ import sys
 
 db = DataBase()
 
-@router_profiles.post("/messages")
+@router_profiles.get("/messages", response_model=list[schemas.MessageOut])
+async def list_user_messages(
+    user_id: int,
+    specialist_id: int,
+    session: AsyncSession = Depends(db.get_db),
+):
+    from sqlalchemy import select
+    q = (
+        select(models.UserMessage)
+        .where(
+            models.UserMessage.user_id == user_id,
+            models.UserMessage.specialist_id == specialist_id,
+        )
+        .order_by(models.UserMessage.created_at.desc())
+    )
+    rows = (await session.execute(q)).scalars().all()
+    return [
+        schemas.MessageOut(
+            id=r.id,
+            user_id=r.user_id,
+            specialist_id=r.specialist_id,
+            message=r.message,
+            created_at=r.created_at,
+        )
+        for r in rows
+    ]
+
+
+@router_profiles.post(
+    "/messages",
+    response_model=schemas.MessageOut,  # <- return the object the UI needs
+    status_code=status.HTTP_201_CREATED
+)
 async def create_user_message(
-    msg: schemas.UserMessageCreate,
-    db: AsyncSession = Depends(db.get_db),
+    msg: schemas.MessageCreate,
+    session: AsyncSession = Depends(db.get_db),
 ):
     # начало текущего часа
-    start_of_hour = datetime.now(UTC_PLUS_5).replace(minute=0, second=0, microsecond=0).replace(tzinfo=None)
+    now_local = datetime.now(UTC_PLUS_5)
+    start_of_hour = now_local.replace(minute=0, second=0, microsecond=0).replace(tzinfo=None)
     end_of_hour = start_of_hour + timedelta(hours=1)
 
 
@@ -131,11 +164,17 @@ async def create_user_message(
 
     print(db_msg)
 
-    db.add(db_msg)
-    await db.commit()
-    await db.refresh(db_msg)
+    session.add(db_msg)
+    await session.commit()
+    await session.refresh(db_msg)
 
-    return {"status": "ok", "id": db_msg.id}
+    return schemas.MessageOut(
+        id=db_msg.id,
+        user_id=db_msg.user_id,
+        specialist_id=db_msg.specialist_id,
+        message=db_msg.message,
+        created_at=db_msg.created_at,
+    )
 
 
 
