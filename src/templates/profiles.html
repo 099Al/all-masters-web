@@ -282,15 +282,51 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  // ------- small helpers -------
+  async function fetchJson(url, options) {
+    const resp = await fetch(url, options);
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`${resp.status} ${resp.statusText}${text ? " — " + text : ""}`);
+    }
+    return resp.json();
+  }
+  function getCaretState(el) {
+    if (!el || !("selectionStart" in el)) return null;
+    return { el, start: el.selectionStart, end: el.selectionEnd };
+  }
+  function restoreCaret(state) {
+    if (!state) return false;
+    const { el, start, end } = state;
+    if (!document.contains(el)) return false;
+    el.focus();
+    try { el.setSelectionRange(start ?? el.value.length, end ?? el.value.length); } catch {}
+    return true;
+  }
+  function focusComposerIn(modalEl) {
+    const ta = modalEl?.querySelector(".modal-footer textarea");
+    if (ta) {
+      ta.focus();
+      try {
+        const len = ta.value.length;
+        ta.setSelectionRange(len, len);
+      } catch {}
+    }
+  }
+  function afterDom(fn) {
+    requestAnimationFrame(() => setTimeout(fn, 0));
+  }
+</script>
 
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const tg = window.Telegram?.WebApp;
   tg?.ready();
   const userId = tg?.initDataUnsafe?.user?.id ?? window.USER_ID_FROM_SERVER ?? null;
 
-  // helper to render a message LI safely (no innerHTML for text)
+  // render <li> for one message
   function renderMessage(list, msg, { prepend = false } = {}) {
     const li = document.createElement("li");
     li.className = "list-group-item d-flex justify-content-between align-items-center";
@@ -301,32 +337,32 @@ document.addEventListener("DOMContentLoaded", () => {
     span.textContent = msg.message ?? msg.text ?? msg.content ?? "";
 
     const actions = document.createElement("div");
+    actions.className = "msg-actions d-flex gap-1";
+
     const editBtn = document.createElement("button");
     editBtn.className = "btn btn-sm btn-outline-secondary edit-btn";
+    editBtn.type = "button";
     editBtn.textContent = "✏️";
 
     const delBtn = document.createElement("button");
     delBtn.className = "btn btn-sm btn-outline-danger delete-btn";
+    delBtn.type = "button";
     delBtn.textContent = "🗑️";
 
     actions.append(editBtn, delBtn);
     li.append(span, actions);
-
     if (prepend) list.prepend(li); else list.appendChild(li);
   }
 
-  // === Открытие модалки -> загрузка сообщений ===
+  // === load on modal open ===
   document.querySelectorAll("[id^='messagesModal-']").forEach(modal => {
     modal.addEventListener("show.bs.modal", async function () {
       const specId = this.dataset.specId || this.id.split("-")[1];
       const list = this.querySelector(`#messagesList-${specId}`);
-
       list.innerHTML = "<li class='list-group-item'>Загрузка...</li>";
-
       try {
-        // Используем реальный список: GET /profiles/messages?user_id=&specialist_id=
-        const url = `/profiles/messages?user_id=${encodeURIComponent(userId)}&specialist_id=${encodeURIComponent(specId)}`;
-        const messages = await fetchJson(url);
+        const url = `/profiles/messages?user_id=${encodeURIComponent(userId)}&specialist_id=${encodeURIComponent(specId)}&_=${Date.now()}`;
+        const messages = await fetchJson(url, { cache: "no-store" });
         list.innerHTML = "";
         messages.forEach(m => renderMessage(list, m));
       } catch (err) {
@@ -335,53 +371,95 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // === Отправка нового сообщения ===
+  // === create ===
   document.querySelectorAll("form[id^='messageForm-']").forEach(form => {
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
       const specId = this.id.split("-")[1];
       const textarea = this.querySelector("textarea");
+      const modal = this.closest(".modal");
       const message = textarea.value.trim();
       if (!message) return;
 
+      const caret = getCaretState(textarea);
       try {
         const newMsg = await fetchJson("/profiles/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId, specialist_id: Number(specId), message })
+          body: JSON.stringify({ user_id: Number(userId), specialist_id: Number(specId), message })
         });
-
         const list = document.querySelector(`#messagesList-${specId}`);
         renderMessage(list, newMsg, { prepend: true });
         textarea.value = "";
       } catch (err) {
         alert("Ошибка: " + err.message);
+      } finally {
+        afterDom(() => (restoreCaret(caret) || focusComposerIn(modal)));
       }
     });
   });
 
-  // === Делегирование событий: удаление / редактирование ===
-  document.body.addEventListener("click", async (e) => {
-    // Удаление
+  // === delegated: delete / edit ===
+  document.body.addEventListener("click", async function (e) {
+    // Inline confirm UI for DELETE (no window.confirm)
     if (e.target.classList.contains("delete-btn")) {
       const li = e.target.closest("li");
-      const msgId = li.dataset.id;
-      if (!confirm("Удалить сообщение?")) return;
-      try {
-        const resp = await fetch(`/profiles/messages/${msgId}`, { method: "DELETE" });
-        if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
-        li.remove();
-      } catch (err) {
-        alert("Ошибка удаления: " + (err.message || err));
-      }
+      const actions = li.querySelector(".msg-actions");
+      const modal = e.target.closest(".modal");
+      const composer = modal?.querySelector(".modal-footer textarea");
+      const caret = getCaretState(composer);
+
+      // build confirm UI
+      const old = actions.cloneNode(true);
+      const ask = document.createElement("div");
+      ask.className = "d-flex gap-1 align-items-center";
+      const label = document.createElement("span");
+      label.textContent = "Удалить?";
+      label.className = "text-danger me-2";
+
+      const yes = document.createElement("button");
+      yes.type = "button";
+      yes.className = "btn btn-sm btn-danger";
+      yes.textContent = "Удалить";
+
+      const no = document.createElement("button");
+      no.type = "button";
+      no.className = "btn btn-sm btn-secondary";
+      no.textContent = "Отмена";
+
+      ask.append(label, yes, no);
+      actions.replaceWith(ask);
+
+      // restore focus immediately (we changed DOM)
+      afterDom(() => (restoreCaret(caret) || focusComposerIn(modal)));
+
+      no.addEventListener("click", () => {
+        ask.replaceWith(old);
+        afterDom(() => (restoreCaret(caret) || focusComposerIn(modal)));
+      });
+
+      yes.addEventListener("click", async () => {
+        try {
+          const resp = await fetch(`/profiles/messages/${li.dataset.id}`, { method: "DELETE" });
+          if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+          li.remove();
+        } catch (err) {
+          alert("Ошибка удаления: " + (err.message || err));
+          // revert UI on error
+          ask.replaceWith(old);
+        } finally {
+          afterDom(() => (restoreCaret(caret) || focusComposerIn(modal)));
+        }
+      });
     }
 
-    // Редактирование (оставил твою логику, только аккуратнее со вставками текста)
+    // EDIT (unchanged logic except using server response is recommended)
     if (e.target.classList.contains("edit-btn")) {
       const li = e.target.closest("li");
       const msgId = li.dataset.id;
       const textSpan = li.querySelector(".msg-text");
       const oldText = textSpan.textContent;
+      const modal = e.target.closest(".modal");
 
       const textarea = document.createElement("textarea");
       textarea.className = "form-control me-2";
@@ -389,12 +467,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const saveBtn = document.createElement("button");
       saveBtn.className = "btn btn-sm btn-success me-1";
+      saveBtn.type = "button";
       saveBtn.textContent = "💾";
 
       const cancelBtn = document.createElement("button");
       cancelBtn.className = "btn btn-sm btn-secondary";
+      cancelBtn.type = "button";
       cancelBtn.textContent = "❌";
 
+      const actions = li.querySelector(".msg-actions");
       const oldEditBtn = e.target;
 
       textSpan.replaceWith(textarea);
@@ -402,11 +483,14 @@ document.addEventListener("DOMContentLoaded", () => {
       saveBtn.insertAdjacentElement("afterend", cancelBtn);
 
       textarea.focus();
-      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      try { textarea.setSelectionRange(textarea.value.length, textarea.value.length); } catch {}
 
       saveBtn.addEventListener("click", async () => {
         const newText = textarea.value.trim();
         if (!newText) return;
+
+        const caret = getCaretState(modal?.querySelector(".modal-footer textarea"));
+
         try {
           const resp = await fetch(`/profiles/messages/${msgId}`, {
             method: "PUT",
@@ -414,6 +498,7 @@ document.addEventListener("DOMContentLoaded", () => {
             body: JSON.stringify({ message: newText })
           });
           if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+
           const newSpan = document.createElement("span");
           newSpan.className = "msg-text";
           newSpan.textContent = newText;
@@ -422,16 +507,22 @@ document.addEventListener("DOMContentLoaded", () => {
           cancelBtn.remove();
         } catch (err) {
           alert("Ошибка редактирования: " + (err.message || err));
+        } finally {
+          afterDom(() => (restoreCaret(caret) || focusComposerIn(modal)));
         }
       });
 
       cancelBtn.addEventListener("click", () => {
+        const caret = getCaretState(modal?.querySelector(".modal-footer textarea"));
+
         const newSpan = document.createElement("span");
         newSpan.className = "msg-text";
         newSpan.textContent = oldText;
         textarea.replaceWith(newSpan);
         saveBtn.replaceWith(oldEditBtn);
         cancelBtn.remove();
+
+        afterDom(() => (restoreCaret(caret) || focusComposerIn(modal)));
       });
     }
   });
