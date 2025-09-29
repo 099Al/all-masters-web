@@ -26,8 +26,8 @@ app.include_router(router_profiles)
 #         response.headers["Cache-Control"] = "public, max-age=2592000"
 #         return response
 
-
-app.mount("/images/static", StaticFiles(directory="images/static", follow_symlink=True), name="static")
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
+app.mount("/images/defaults", StaticFiles(directory="images/defaults", follow_symlink=True), name="defaults")
 app.mount("/images/works", StaticFiles(directory="images/works", follow_symlink=True), name="works")
 
 
