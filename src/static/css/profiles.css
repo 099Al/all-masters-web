@@ -29,3 +29,9 @@
     .about-photos { margin-top: 8px; }
     .modal-content img { object-fit: contain; max-height: 80vh; }
 
+
+
+
+.contacts a { color: inherit; }
+.contacts i { vertical-align: middle; }
+

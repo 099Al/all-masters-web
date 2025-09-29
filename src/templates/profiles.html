@@ -55,148 +55,149 @@
 
 
 
+
+
+
   {% for s in specialists %}
-  <div class="card shadow-sm p-3 mb-3">
-    <div class="d-flex align-items-stretch">
-      <!-- Левая колонка -->
-      <div class="d-flex flex-column align-items-center me-3">
-        <img src="{{ url_for('get_avatar', filename=s.photo_name) }}"
-             class="rounded mb-2"
-             width="100" height="100"
-             alt="Фото специалиста">
-        <div class="name text-center" style="font-size:12px;">{{ s.name }}</div>
-      </div>
+<div class="card shadow-sm p-3 mb-3">
+  <div class="d-flex align-items-stretch">
 
-      <!-- Правая колонка -->
-      <div class="flex-fill d-flex flex-column">
-        <!-- Услуги -->
-        <div class="services mb-2"
-             style="font-size:14px; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis;">
-          {{ s.services }}
-        </div>
+    <!-- Левая колонка (аватар + имя + контакты/кнопка + модалка) -->
+    <div class="d-flex flex-column align-items-center me-3" style="min-width:120px">
+      <img src="{{ url_for('get_avatar', filename=s.photo_name) }}"
+           class="rounded mb-2" width="100" height="100" alt="Фото специалиста">
+      <div class="name text-center" style="font-size:12px;">{{ s.name }}</div>
 
-        <!-- About (текст + фото) -->
-        <div class="about-wrapper">
-          <div id="about-{{ s.id }}" class="about-content">
-            <div class="about-text">{{ s.about }}</div>
-            {% set work_photos = spec_photos_map.get(s.id, []) %}
-
-            <!-- Миниатюры -->
-            <div class="about-photos d-flex flex-wrap gap-2 mt-2">
-              {% for photo in work_photos %}
-                <img src="{{ url_for('works', path=photo) }}"
-                     class="img-thumbnail"
-                     width="50" height="50"
-                     style="cursor:pointer;"
-                     data-bs-toggle="modal"
-                     data-bs-target="#photoModal-{{ s.id }}"
-                     data-index="{{ loop.index0 }}">
-              {% endfor %}
-            </div>
-
-
-          <!-- Modal с каруселью -->
-<div class="modal fade" id="photoModal-{{ s.id }}" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content bg-dark">
-      <div class="modal-body p-0">
-        <div id="modalCarousel-{{ s.id }}" class="carousel slide" data-bs-ride="false">
-          <div class="carousel-inner">
-            {% for photo in work_photos %}
-              <div class="carousel-item {% if loop.first %}active{% endif %}">
-                <img src="{{ url_for('works', path=photo) }}"
-                     class="d-block w-100"
-                     alt="{{ s.name }}">
-              </div>
-            {% endfor %}
-          </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel-{{ s.id }}" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon"></span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel-{{ s.id }}" data-bs-slide="next">
-            <span class="carousel-control-next-icon"></span>
-          </button>
-        </div>
-      </div>
+  <!-- Contacts left aligned -->
+  <div class="contacts mt-2 d-flex flex-column gap-1 contacts-under-avatar">
+  {% if s.is_available %}
+    {# Row 1: email, phone #}
+    {% if s.email or s.phone %}
+    <div class="d-flex justify-content-center gap-2 contacts-row-nudge">
+      {% if s.email %}
+        <a href="mailto:{{ s.email }}" class="text-decoration-none text-dark" aria-label="Email">
+          <i class="fas fa-envelope fa-lg"></i>
+        </a>
+      {% endif %}
+      {% if s.phone %}
+        <a href="tel:{{ s.phone }}" class="text-decoration-none text-dark" aria-label="Phone">
+          <i class="fas fa-phone fa-lg"></i>
+        </a>
+      {% endif %}
     </div>
-  </div>
+    {% endif %}
+
+    {# Row 2: instagram, whatsapp, telegram #}
+    {% if s.instagram or s.whatsapp or s.telegram %}
+    <div class="d-flex justify-content-center gap-2 contacts-row-nudge">
+      {% if s.instagram %}
+        <a href="https://instagram.com/{{ s.instagram }}" target="_blank" class="text-decoration-none text-dark" aria-label="Instagram">
+          <i class="fab fa-instagram fa-lg"></i>
+        </a>
+      {% endif %}
+      {% if s.whatsapp %}
+        <a href="https://wa.me/{{ s.whatsapp }}" target="_blank" class="text-decoration-none text-dark" aria-label="WhatsApp">
+          <i class="fab fa-whatsapp fa-lg"></i>
+        </a>
+      {% endif %}
+      {% if s.telegram %}
+        <a href="https://t.me/{{ s.telegram }}" target="_blank" class="text-decoration-none text-dark" aria-label="Telegram">
+          <i class="fab fa-telegram fa-lg"></i>
+        </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  {% else %}
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#messagesModal-{{ s.id }}">
+      Написать
+    </button>
+  {% endif %}
 </div>
 
 
 
 
-
+      <!-- Модалка сообщений -->
+      <div class="modal fade" id="messagesModal-{{ s.id }}" data-spec-id="{{ s.id }}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Сообщения</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <ul id="messagesList-{{ s.id }}" class="list-group"></ul>
+            </div>
+            <div class="modal-footer">
+              <form id="messageForm-{{ s.id }}" class="w-100 d-flex">
+                <textarea class="form-control me-2" rows="1" placeholder="Введите сообщение..."></textarea>
+                <button type="submit" class="btn btn-primary">Отправить</button>
+              </form>
+            </div>
           </div>
         </div>
-
-        <!-- Кнопка показать/скрыть -->
-        <button class="btn btn-link p-0 about-toggle" type="button" onclick="toggleAbout(this)">Показать больше</button>
-
-        <!-- Контакты -->
-        <div class="contacts mt-3">
-          {% if s.is_available %}
-            {% if s.telegram %}
-              <a href="https://t.me/{{ s.telegram }}" target="_blank" class="me-2 text-decoration-none text-dark">
-                <i class="fab fa-telegram fa-lg"></i>
-              </a>
-            {% endif %}
-            {% if s.instagram %}
-              <a href="https://instagram.com/{{ s.instagram }}" target="_blank" class="me-2 text-decoration-none text-dark">
-                <i class="fab fa-instagram fa-lg"></i>
-              </a>
-            {% endif %}
-            {% if s.phone %}
-              <a href="tel:{{ s.phone }}" class="me-2 text-decoration-none text-dark">
-                <i class="fas fa-phone fa-lg"></i>
-              </a>
-            {% endif %}
-            {% if s.whatsapp %}
-              <a href="https://wa.me/{{ s.whatsapp }}" target="_blank" class="me-2 text-decoration-none text-dark">
-                <i class="fab fa-whatsapp fa-lg"></i>
-              </a>
-            {% endif %}
-            {% if s.email %}
-              <a href="mailto:{{ s.email }}" class="me-2 text-decoration-none text-dark">
-                <i class="fas fa-envelope fa-lg"></i>
-              </a>
-            {% endif %}
-          {% else %}
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#messagesModal-{{ s.id }}">Написать</button>
-          {% endif %}
-
-<!-- Модальное окно -->
-<div class="modal fade" id="messagesModal-{{ s.id }}" data-spec-id="{{ s.id }}" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Сообщения</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <ul id="messagesList-{{ s.id }}" class="list-group">
-          <!-- сюда будут подгружаться сообщения -->
-        </ul>
+    </div><!-- /left -->
+
+    <!-- Правая колонка -->
+    <div class="flex-fill d-flex flex-column">
+      <!-- Услуги -->
+      <div class="services mb-2"
+           style="font-size:14px; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis;">
+        {{ s.services }}
       </div>
-      <div class="modal-footer">
-        <form id="messageForm-{{ s.id }}" class="w-100 d-flex">
-          <textarea class="form-control me-2" rows="1" placeholder="Введите сообщение..."></textarea>
-          <button type="submit" class="btn btn-primary">Отправить</button>
-        </form>
-      </div>
-    </div>
-  </div>
-</div><!-- /.modal-content -->
 
+      <!-- About (текст + фото) -->
+      <div class="about-wrapper">
+        <div id="about-{{ s.id }}" class="about-content">
+          <div class="about-text">{{ s.about }}</div>
+          {% set work_photos = spec_photos_map.get(s.id, []) %}
 
+          <div class="about-photos d-flex flex-wrap gap-2 mt-2">
+            {% for photo in work_photos %}
+              <img src="{{ url_for('works', path=photo) }}"
+                   class="img-thumbnail" width="50" height="50" style="cursor:pointer;"
+                   data-bs-toggle="modal" data-bs-target="#photoModal-{{ s.id }}"
+                   data-index="{{ loop.index0 }}">
+            {% endfor %}
+          </div>
 
-
-
-
+          <!-- Modal с каруселью -->
+          <div class="modal fade" id="photoModal-{{ s.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+              <div class="modal-content bg-dark">
+                <div class="modal-body p-0">
+                  <div id="modalCarousel-{{ s.id }}" class="carousel slide" data-bs-ride="false">
+                    <div class="carousel-inner">
+                      {% for photo in work_photos %}
+                        <div class="carousel-item {% if loop.first %}active{% endif %}">
+                          <img src="{{ url_for('works', path=photo) }}" class="d-block w-100" alt="{{ s.name }}">
+                        </div>
+                      {% endfor %}
+                    </div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel-{{ s.id }}" data-bs-slide="prev">
+                      <span class="carousel-control-prev-icon"></span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel-{{ s.id }}" data-bs-slide="next">
+                      <span class="carousel-control-next-icon"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div><!-- /photo modal -->
         </div>
       </div>
-    </div>
-  </div>
-  {% endfor %}
+
+      <button class="btn btn-link p-0 about-toggle" type="button" onclick="toggleAbout(this)">Показать больше</button>
+    </div><!-- /right -->
+
+  </div><!-- /.d-flex align-items-stretch -->
+</div><!-- /.card -->
+{% endfor %}
+
+
+
 </div>
 
 
