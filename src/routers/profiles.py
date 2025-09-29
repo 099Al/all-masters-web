@@ -1,9 +1,10 @@
 import os
 from datetime import datetime, timedelta
+from math import ceil
 
 from urllib import request
 
-from fastapi import APIRouter, Request, Depends, Response
+from fastapi import APIRouter, Request, Depends, Response, Query
 from fastapi.responses import HTMLResponse
 
 from fastapi.templating import Jinja2Templates
@@ -15,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from starlette.responses import FileResponse
 
-from src.config_paramaters import UTC_PLUS_5, MESSAGES_TO_SPECIALISTS_LIMIT
+from src.config_paramaters import UTC_PLUS_5, MESSAGES_TO_SPECIALISTS_LIMIT, PAGINATION_PER_PAGE
 from src.database.models import SpecialistPhotoType, models
 from src.database.requests_web import ReqWeb
 from src.database.connect import DataBase
@@ -47,18 +48,37 @@ async def get_avatar(filename: str):
 templates = Jinja2Templates(directory="src/templates")
 
 @router_profiles.get("/", response_class=HTMLResponse)
-async def profiles(request: Request):
+async def profiles(request: Request, page: int = Query(1, ge=1)):
     req = ReqWeb()
     data_specialists = await req.get_active_specialists_data()
-    data = {}
-    for s in data_specialists:
+
+    total = len(data_specialists)
+    total_pages = max(1, ceil(total / PAGINATION_PER_PAGE))
+
+    if page > total_pages:
+        page = total_pages
+
+    start = (page - 1) * PAGINATION_PER_PAGE
+    end = start + PAGINATION_PER_PAGE
+    specialists_page = data_specialists[start:end]
+
+    spec_photos_map = {}
+    for s in specialists_page:
         work_photos = await req.get_photo(s.id, SpecialistPhotoType.WORKS)
-        work_photos = work_photos[:6]
-        data[s.id] = work_photos
+        spec_photos_map[s.id] = work_photos[:6]
 
     return templates.TemplateResponse(
         "profiles.html",
-        {"request": request, "title": "Специалисты", "specialists": data_specialists, "spec_photos_map": data}
+        {
+            "request": request,
+            "title": "Специалисты",
+            "specialists": specialists_page,  # <— only current page
+            "spec_photos_map": spec_photos_map,  # <— map for visible ones
+            "page": page,
+            "per_page": PAGINATION_PER_PAGE,
+            "total": total,
+            "total_pages": total_pages,
+        }
     )
 
 
