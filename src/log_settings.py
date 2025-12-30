@@ -1,7 +1,7 @@
 import logging.config
 import os
 
-LOG_FILE = 'logs/shop.log'
+LOG_FILE = 'logs/web.log'
 os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
 LOGGING_CONFIG = {
