@@ -46,4 +46,7 @@ if __name__ == "__main__":
     Реагирует на замену в html файлах, на изменения в путях к файлм не реагирует
     """
     print(os.getpid())
-    uvicorn.run(app="main:app", reload=True, host=settings.WEB_HOST, port=settings.WEB_PORT, workers=2)
+    uvicorn.run(app="src.main:app", reload=True, host=settings.WEB_HOST, port=settings.WEB_PORT, workers=2)
+
+    #локальный запуск
+    #uvicorn.run(app="main:app", reload=True, host=settings.WEB_HOST, port=settings.WEB_PORT, workers=2)
