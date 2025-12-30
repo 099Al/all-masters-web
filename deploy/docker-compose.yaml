@@ -4,6 +4,12 @@ services:
     build:
       context: ..
       dockerfile: build/Dockerfile
+    volumes:
+      - "G:/WorkSpaces/PythonWs/telegram/project-all-masters/logs:/app/logs"
+      - "G:/WorkSpaces/PythonWs/telegram/project-all-masters/images/avatars:/app/images/avatars"
+      - "G:/WorkSpaces/PythonWs/telegram/project-all-masters/images/collages:/app/images/collages"
+      - "G:/WorkSpaces/PythonWs/telegram/project-all-masters/images/defaults:/app/images/defaults"
+      - "G:/WorkSpaces/PythonWs/telegram/project-all-masters/images/works:/app/images/works"
     # изменения кода без пересборки:
     # volumes:
     #   - .:/app
