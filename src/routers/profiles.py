@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from starlette.responses import FileResponse
 
-from src.config_paramaters import UTC_PLUS_5, MESSAGES_TO_SPECIALISTS_LIMIT, PAGINATION_PER_PAGE
+from src.config_paramaters import configs
 from src.database.models import SpecialistPhotoType, models
 from src.database.requests_web import ReqWeb
 from src.database.connect import DataBase
@@ -53,13 +53,13 @@ async def profiles(request: Request, page: int = Query(1, ge=1)):
     data_specialists = await req.get_active_specialists_data()
 
     total = len(data_specialists)
-    total_pages = max(1, ceil(total / PAGINATION_PER_PAGE))
+    total_pages = max(1, ceil(total / configs.PAGINATION_PER_PAGE))
 
     if page > total_pages:
         page = total_pages
 
-    start = (page - 1) * PAGINATION_PER_PAGE
-    end = start + PAGINATION_PER_PAGE
+    start = (page - 1) * configs.PAGINATION_PER_PAGE
+    end = start + configs.PAGINATION_PER_PAGE
     specialists_page = data_specialists[start:end]
 
     spec_photos_map = {}
@@ -75,7 +75,7 @@ async def profiles(request: Request, page: int = Query(1, ge=1)):
             "specialists": specialists_page,  # <— only current page
             "spec_photos_map": spec_photos_map,  # <— map for visible ones
             "page": page,
-            "per_page": PAGINATION_PER_PAGE,
+            "per_page": configs.PAGINATION_PER_PAGE,
             "total": total,
             "total_pages": total_pages,
         }
