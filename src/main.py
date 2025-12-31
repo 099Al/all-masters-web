@@ -12,6 +12,7 @@ from starlette.staticfiles import StaticFiles
 
 from src.routers.profiles import router_profiles
 from src.routers.static_text import router_text
+from src.config import settings
 
 app = FastAPI()
 
@@ -59,4 +60,7 @@ if __name__ == "__main__":
     Реагирует на замену в html файлах, на изменения в путях к файлм не реагирует
     """
     print(os.getpid())
-    uvicorn.run(app="main:app", reload=True, host='127.0.0.1', port=8000, workers=2)
+    uvicorn.run(app="src.main:app", reload=True, host=settings.WEB_HOST, port=settings.WEB_PORT, workers=2)
+
+    #локальный запуск
+    #uvicorn.run(app="main:app", reload=True, host=settings.WEB_HOST, port=settings.WEB_PORT, workers=2)
