@@ -7,13 +7,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    HOST: str
-    PORT: str
-    USER: str
-    PASS: str
-    DB: str
+    POSTGRES_HOST: str
+    POSTGRES_PORT: int
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
     ENGINE: str
-    GPT_KEY: str = None
+
+    WEB_HOST: str
+    WEB_PORT: int
 
 
     #instead load_dotenv()
@@ -23,7 +25,7 @@ class Settings(BaseSettings):
 
     @property
     def connect_url(self):
-        return f'{self.ENGINE}://{self.USER}:{self.PASS}@{self.HOST}:{self.PORT}/{self.DB}'
+        return f'{self.ENGINE}://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}'
 
 
 settings = Settings()
