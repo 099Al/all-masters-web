@@ -144,6 +144,8 @@
     const USER_ID_FROM_SERVER = document.body.dataset.userId ? Number(document.body.dataset.userId) : null;
     let userId = tg?.initDataUnsafe?.user?.id ?? USER_ID_FROM_SERVER ?? null;
 
+    const MODE = window.MODE || "PROD";
+
     if (MODE === "DEV" && (userId === null || userId === undefined)) {
     userId = 988269770;
     console.warn("DEV MODE: userId overridden to", userId);

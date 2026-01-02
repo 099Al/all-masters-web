@@ -175,7 +175,7 @@ async def create_user_message(
 
     req = ReqWeb()
     cnt_messages = await req.get_cnt_messages(msg.user_id, start_of_hour, end_of_hour)
-    if  cnt_messages >= configs.MESSAGES_TO_SPECIALISTS_LIMIT:
+    if cnt_messages >= configs.MESSAGES_TO_SPECIALISTS_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Слишком много сообщений, попробуйте позже."
@@ -200,7 +200,7 @@ async def create_user_message(
         user_id=db_msg.user_id,
         specialist_id=db_msg.specialist_id,
         message=db_msg.message,
-        created_at=db_msg.created_at,
+        created_at=db_msg.created_at
     )
 
 
@@ -210,6 +210,7 @@ async def update_user_message(
     payload: schemas.MessageUpdate,          # message: str
     session: AsyncSession = Depends(db.get_db),
 ):
+    print(3)
     stmt = (
         update(models.UserMessage)
         .where(models.UserMessage.id == msg_id)
