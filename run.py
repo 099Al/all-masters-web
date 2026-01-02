@@ -19,6 +19,7 @@ if __name__ == "__main__":
         host=settings.WEB_HOST,
         port=settings.WEB_PORT,
         workers=1,
+        #log_level="info",
         # ssl_certfile="certs/cert.pem",
         # ssl_keyfile="certs/key.pem"
     )

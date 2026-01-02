@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from starlette.responses import FileResponse
 
+from src.config import settings
 from src.config_paramaters import configs
 from src.database.models import SpecialistPhotoType, models
 from src.database.requests_web import ReqWeb
@@ -25,6 +26,12 @@ import mimetypes
 
 from src.schemas import schemas
 from src.schemas.schemas import MessageCreate
+
+import src.log_settings
+import logging
+logger = logging.getLogger(__name__)
+#logger = logging.getLogger("uvicorn.access")
+
 
 router_profiles = APIRouter(
     prefix="/profiles",
@@ -78,6 +85,7 @@ async def profiles(request: Request, page: int = Query(1, ge=1)):
             "per_page": configs.PAGINATION_PER_PAGE,
             "total": total,
             "total_pages": total_pages,
+            "MODE": settings.MODE,
         }
     )
 
@@ -160,14 +168,14 @@ async def create_user_message(
     session: AsyncSession = Depends(db.get_db),
 ):
     # начало текущего часа
-    now_local = datetime.now(UTC_PLUS_5)
+    now_local = datetime.now(configs.UTC_PLUS_5)
     start_of_hour = now_local.replace(minute=0, second=0, microsecond=0).replace(tzinfo=None)
     end_of_hour = start_of_hour + timedelta(hours=1)
 
 
     req = ReqWeb()
     cnt_messages = await req.get_cnt_messages(msg.user_id, start_of_hour, end_of_hour)
-    if  cnt_messages >= MESSAGES_TO_SPECIALISTS_LIMIT:
+    if  cnt_messages >= configs.MESSAGES_TO_SPECIALISTS_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Слишком много сообщений, попробуйте позже."
@@ -179,11 +187,9 @@ async def create_user_message(
         user_id=msg.user_id,         #TODO: # берём из JWT
         specialist_id=msg.specialist_id,
         message=msg.message,
-        created_at=datetime.now(UTC_PLUS_5).replace(microsecond=0).replace(tzinfo=None),
+        created_at=datetime.now(configs.UTC_PLUS_5).replace(microsecond=0).replace(tzinfo=None),
         is_valid=None,
     )
-
-    print(db_msg)
 
     session.add(db_msg)
     await session.commit()
