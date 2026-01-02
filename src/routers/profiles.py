@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from starlette.responses import FileResponse
 
-from src.config_paramaters import UTC_PLUS_5, MESSAGES_TO_SPECIALISTS_LIMIT, PAGINATION_PER_PAGE
+from src.config import settings
+from src.config_paramaters import configs
 from src.database.models import SpecialistPhotoType, models
 from src.database.requests_web import ReqWeb
 from src.database.connect import DataBase
@@ -25,6 +26,12 @@ import mimetypes
 
 from src.schemas import schemas
 from src.schemas.schemas import MessageCreate
+
+import src.log_settings
+import logging
+logger = logging.getLogger(__name__)
+#logger = logging.getLogger("uvicorn.access")
+
 
 router_profiles = APIRouter(
     prefix="/profiles",
@@ -53,13 +60,13 @@ async def profiles(request: Request, page: int = Query(1, ge=1)):
     data_specialists = await req.get_active_specialists_data()
 
     total = len(data_specialists)
-    total_pages = max(1, ceil(total / PAGINATION_PER_PAGE))
+    total_pages = max(1, ceil(total / configs.PAGINATION_PER_PAGE))
 
     if page > total_pages:
         page = total_pages
 
-    start = (page - 1) * PAGINATION_PER_PAGE
-    end = start + PAGINATION_PER_PAGE
+    start = (page - 1) * configs.PAGINATION_PER_PAGE
+    end = start + configs.PAGINATION_PER_PAGE
     specialists_page = data_specialists[start:end]
 
     spec_photos_map = {}
@@ -75,9 +82,10 @@ async def profiles(request: Request, page: int = Query(1, ge=1)):
             "specialists": specialists_page,  # <— only current page
             "spec_photos_map": spec_photos_map,  # <— map for visible ones
             "page": page,
-            "per_page": PAGINATION_PER_PAGE,
+            "per_page": configs.PAGINATION_PER_PAGE,
             "total": total,
             "total_pages": total_pages,
+            "MODE": settings.MODE,
         }
     )
 
@@ -160,14 +168,14 @@ async def create_user_message(
     session: AsyncSession = Depends(db.get_db),
 ):
     # начало текущего часа
-    now_local = datetime.now(UTC_PLUS_5)
+    now_local = datetime.now(configs.UTC_PLUS_5)
     start_of_hour = now_local.replace(minute=0, second=0, microsecond=0).replace(tzinfo=None)
     end_of_hour = start_of_hour + timedelta(hours=1)
 
 
     req = ReqWeb()
     cnt_messages = await req.get_cnt_messages(msg.user_id, start_of_hour, end_of_hour)
-    if  cnt_messages >= MESSAGES_TO_SPECIALISTS_LIMIT:
+    if cnt_messages >= configs.MESSAGES_TO_SPECIALISTS_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Слишком много сообщений, попробуйте позже."
@@ -179,11 +187,9 @@ async def create_user_message(
         user_id=msg.user_id,         #TODO: # берём из JWT
         specialist_id=msg.specialist_id,
         message=msg.message,
-        created_at=datetime.now(UTC_PLUS_5).replace(microsecond=0).replace(tzinfo=None),
+        created_at=datetime.now(configs.UTC_PLUS_5).replace(microsecond=0).replace(tzinfo=None),
         is_valid=None,
     )
-
-    print(db_msg)
 
     session.add(db_msg)
     await session.commit()
@@ -194,7 +200,7 @@ async def create_user_message(
         user_id=db_msg.user_id,
         specialist_id=db_msg.specialist_id,
         message=db_msg.message,
-        created_at=db_msg.created_at,
+        created_at=db_msg.created_at
     )
 
 
@@ -204,6 +210,7 @@ async def update_user_message(
     payload: schemas.MessageUpdate,          # message: str
     session: AsyncSession = Depends(db.get_db),
 ):
+    print(3)
     stmt = (
         update(models.UserMessage)
         .where(models.UserMessage.id == msg_id)

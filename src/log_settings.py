@@ -15,7 +15,7 @@ LOGGING_CONFIG = {
     'handlers': {
         'file': {
             'class': 'logging.FileHandler',
-            'level': 'ERROR',
+            'level': 'INFO',
             'formatter': 'default',
             'filename': LOG_FILE,
             'mode': 'a',
@@ -23,13 +23,13 @@ LOGGING_CONFIG = {
         },
         'console': {
             'class': 'logging.StreamHandler',
-            'level': 'ERROR',
+            'level': 'INFO',
             'formatter': 'default',
             'stream': 'ext://sys.stdout',
         },
     },
     'root': {
-        'level': 'ERROR',
+        'level': 'INFO',
         'handlers': ['file', 'console'],
     },
 }

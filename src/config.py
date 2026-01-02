@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     WEB_HOST: str
     WEB_PORT: int
 
+    MODE: str = None
+
+    SUPER_ADMIN_ID: str
+
 
     #instead load_dotenv()
     path_root: str = str(Path(__file__).resolve().parent.parent)

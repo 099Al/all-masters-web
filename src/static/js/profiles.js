@@ -142,7 +142,18 @@
     const tg = window.Telegram?.WebApp;
     tg?.ready();
     const USER_ID_FROM_SERVER = document.body.dataset.userId ? Number(document.body.dataset.userId) : null;
-    const userId = tg?.initDataUnsafe?.user?.id ?? USER_ID_FROM_SERVER ?? null;
+    let userId = tg?.initDataUnsafe?.user?.id ?? USER_ID_FROM_SERVER ?? null;
+
+    const MODE = window.MODE || "PROD";
+
+    if (MODE === "DEV" && (userId === null || userId === undefined)) {
+    userId = 988269770;
+    console.warn("DEV MODE: userId overridden to", userId);
+  }
+
+    userId = Number(userId);
+    const hasUserId = Number.isInteger(userId) && userId > 0;
+
 
     // Load on modal open
     document.querySelectorAll("[id^='messagesModal-']").forEach(modal => {
@@ -151,7 +162,15 @@
         const list = this.querySelector(`#messagesList-${specId}`);
         list.innerHTML = "<li class='list-group-item'>Загрузка...</li>";
 
+        if (!hasUserId) {
+        list.innerHTML =
+          "<li class='list-group-item text-danger'>Не удалось определить пользователя (user_id). Откройте страницу через Telegram WebApp или авторизуйтесь.</li>";
+        return;
+      }
+
         try {
+
+
           const url = `/profiles/messages?user_id=${encodeURIComponent(userId)}&specialist_id=${encodeURIComponent(specId)}&_=${Date.now()}`;
           const messages = await fetchJson(url, { cache: "no-store" });
           list.innerHTML = "";
