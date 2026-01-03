@@ -171,7 +171,7 @@
         try {
 
 
-          const url = `/profiles/messages?user_id=${encodeURIComponent(userId)}&specialist_id=${encodeURIComponent(specId)}&_=${Date.now()}`;
+          const url = `/profiles/messages/list?user_id=${encodeURIComponent(userId)}&specialist_id=${encodeURIComponent(specId)}&_=${Date.now()}`;
           const messages = await fetchJson(url, { cache: "no-store" });
           list.innerHTML = "";
           messages.forEach(m => renderMessage(list, m));
@@ -193,7 +193,7 @@
 
         const caret = getCaretState(textarea);
         try {
-          const newMsg = await fetchJson("/profiles/messages", {
+          const newMsg = await fetchJson("/profiles/messages/create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: Number(userId), specialist_id: Number(specId), message })

@@ -130,7 +130,7 @@ import sys
 
 db = DataBase()
 
-@router_profiles.get("/messages", response_model=list[schemas.MessageOut])
+@router_profiles.get("/messages/list", response_model=list[schemas.MessageOut])
 async def list_user_messages(
     user_id: int,
     specialist_id: int,
@@ -159,7 +159,7 @@ async def list_user_messages(
 
 
 @router_profiles.post(
-    "/messages",
+    "/messages/create",
     response_model=schemas.MessageOut,  # <- return the object the UI needs
     status_code=status.HTTP_201_CREATED
 )
