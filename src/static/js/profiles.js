@@ -141,18 +141,10 @@
   function initMessages() {
     const tg = window.Telegram?.WebApp;
     tg?.ready();
-    const USER_ID_FROM_SERVER = document.body.dataset.userId ? Number(document.body.dataset.userId) : null;
-    let userId = tg?.initDataUnsafe?.user?.id ?? USER_ID_FROM_SERVER ?? null;
 
     const MODE = window.MODE || "PROD";
+    const initData = tg?.initData || "";
 
-    if (MODE === "DEV" && (userId === null || userId === undefined)) {
-    userId = 988269770;
-    console.warn("DEV MODE: userId overridden to", userId);
-  }
-
-    userId = Number(userId);
-    const hasUserId = Number.isInteger(userId) && userId > 0;
 
 
     // Load on modal open
@@ -162,23 +154,32 @@
         const list = this.querySelector(`#messagesList-${specId}`);
         list.innerHTML = "<li class='list-group-item'>Загрузка...</li>";
 
-        if (!hasUserId) {
-        list.innerHTML =
-          "<li class='list-group-item text-danger'>Не удалось определить пользователя (user_id). Откройте страницу через Telegram WebApp или авторизуйтесь.</li>";
-        return;
-      }
+        // В PROD требуем Telegram initData (иначе сервер вернёт 401)
+        if (MODE !== "DEV" && !initData) {
+          list.innerHTML =
+            "<li class='list-group-item text-danger'>Откройте страницу через Telegram WebApp.</li>";
+          return;
+        }
 
         try {
+        const messages = await fetchJson("/profiles/messages/list", {
+          method: "POST",
+          cache: "no-store",
+          headers: {
+            "Content-Type": "application/json",
+            ...(initData ? { "X-Telegram-Init-Data": initData } : {}),
+          },
+          body: JSON.stringify({
+            specialist_id: Number(specId),
+          }),
+        });
 
-
-          const url = `/profiles/messages/list?user_id=${encodeURIComponent(userId)}&specialist_id=${encodeURIComponent(specId)}&_=${Date.now()}`;
-          const messages = await fetchJson(url, { cache: "no-store" });
-          list.innerHTML = "";
-          messages.forEach(m => renderMessage(list, m));
+            list.innerHTML = "";
+            messages.forEach((m) => renderMessage(list, m));
         } catch (err) {
           list.innerHTML = `<li class="list-group-item text-danger">Ошибка загрузки: ${err.message || err}</li>`;
         }
-      });
+     });
     });
 
     // Create
@@ -195,8 +196,14 @@
         try {
           const newMsg = await fetchJson("/profiles/messages/create", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: Number(userId), specialist_id: Number(specId), message })
+             headers: {
+                        "Content-Type": "application/json",
+                        ...(initData ? { "X-Telegram-Init-Data": initData } : {}),
+                        },
+             body: JSON.stringify({
+                specialist_id: Number(specId),
+                message,
+             }),
           });
           const list = document.querySelector(`#messagesList-${specId}`);
           renderMessage(list, newMsg, { prepend: true });
