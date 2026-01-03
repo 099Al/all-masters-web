@@ -1,6 +1,12 @@
+import json
 import os
 from datetime import datetime, timedelta
 from math import ceil
+
+import hmac
+import hashlib
+import time
+from urllib.parse import parse_qsl
 
 from urllib import request
 
@@ -128,15 +134,87 @@ async def profiles(request: Request, page: int = Query(1, ge=1)):
 from fastapi import Request
 import sys
 
+def _verify_telegram_init_data(init_data: str, bot_token: str, max_age_sec: int = 3600) -> dict:
+    """
+    Verify Telegram WebApp initData signature.
+    Returns parsed data dict (values are strings) if valid, else raises.
+    """
+    if not init_data:
+        raise HTTPException(401, "Telegram initData required")
+
+    # Parse querystring-like initData into list of pairs, preserving all fields
+    pairs = parse_qsl(init_data, keep_blank_values=True)
+
+    data = dict(pairs)
+    received_hash = data.pop("hash", None)
+    if not received_hash:
+        raise HTTPException(401, "Telegram initData hash missing")
+
+    # Optional: freshness check
+    auth_date_str = data.get("auth_date")
+    if not auth_date_str or not auth_date_str.isdigit():
+        raise HTTPException(401, "Telegram initData auth_date missing/invalid")
+
+    auth_date = int(auth_date_str)
+    now = int(time.time())
+    if now - auth_date > max_age_sec:
+        raise HTTPException(401, "Telegram initData expired")
+
+    # Build data_check_string: key=value lines sorted by key
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
+
+    # Secret key = HMAC_SHA256("WebAppData", bot_token)
+    secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
+
+    # Calculated hash = HMAC_SHA256(secret_key, data_check_string)
+    calculated_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(calculated_hash, received_hash):
+        raise HTTPException(401, "Invalid Telegram initData signature")
+
+    return data
+
+async def get_current_tg_user(request: Request):
+    #if settings.MODE == "DEV":
+    #    return {"id": settings.SUPER_ADMIN_ID}
+
+    init_data = request.headers.get("X-Telegram-Init-Data")
+    data = _verify_telegram_init_data(init_data, bot_token=settings.BOT_TOKEN, max_age_sec=3600)
+
+    user_raw = data.get("user")
+    if not user_raw:
+        raise HTTPException(401, "Telegram initData has no user")
+
+    try:
+        user = json.loads(user_raw)
+    except json.JSONDecodeError:
+        raise HTTPException(401, "Telegram user JSON invalid")
+
+    if "id" not in user:
+        raise HTTPException(401, "Telegram user id missing")
+    try:
+        user["id"] = int(user["id"])
+    except (TypeError, ValueError):
+        raise HTTPException(401, "Telegram user id is not int")
+
+    return user
+
+
 db = DataBase()
 
-@router_profiles.get("/messages", response_model=list[schemas.MessageOut])
+@router_profiles.post("/messages/list", response_model=list[schemas.MessageOut], status_code=status.HTTP_200_OK,)
 async def list_user_messages(
-    user_id: int,
-    specialist_id: int,
+    payload: schemas.MessagesListIn,
+    tg_user: int = Depends(get_current_tg_user),
     session: AsyncSession = Depends(db.get_db),
 ):
     from sqlalchemy import select
+
+    user_id = tg_user["id"]
+    print(user_id)
+    print(type(user_id))
+    specialist_id = payload.specialist_id
+
     q = (
         select(models.UserMessage)
         .where(
@@ -159,14 +237,17 @@ async def list_user_messages(
 
 
 @router_profiles.post(
-    "/messages",
+    "/messages/create",
     response_model=schemas.MessageOut,  # <- return the object the UI needs
     status_code=status.HTTP_201_CREATED
 )
 async def create_user_message(
     msg: schemas.MessageCreate,
+    tg_user=Depends(get_current_tg_user),
     session: AsyncSession = Depends(db.get_db),
 ):
+    user_id = tg_user["id"]
+
     # начало текущего часа
     now_local = datetime.now(configs.UTC_PLUS_5)
     start_of_hour = now_local.replace(minute=0, second=0, microsecond=0).replace(tzinfo=None)
@@ -174,7 +255,7 @@ async def create_user_message(
 
 
     req = ReqWeb()
-    cnt_messages = await req.get_cnt_messages(msg.user_id, start_of_hour, end_of_hour)
+    cnt_messages = await req.get_cnt_messages(user_id, start_of_hour, end_of_hour)
     if cnt_messages >= configs.MESSAGES_TO_SPECIALISTS_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -184,7 +265,7 @@ async def create_user_message(
 
 
     db_msg = models.UserMessage(
-        user_id=msg.user_id,         #TODO: # берём из JWT
+        user_id=user_id,         #TODO: # берём из JWT
         specialist_id=msg.specialist_id,
         message=msg.message,
         created_at=datetime.now(configs.UTC_PLUS_5).replace(microsecond=0).replace(tzinfo=None),
@@ -210,7 +291,6 @@ async def update_user_message(
     payload: schemas.MessageUpdate,          # message: str
     session: AsyncSession = Depends(db.get_db),
 ):
-    print(3)
     stmt = (
         update(models.UserMessage)
         .where(models.UserMessage.id == msg_id)

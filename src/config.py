@@ -19,8 +19,9 @@ class Settings(BaseSettings):
 
     MODE: str = None
 
-    SUPER_ADMIN_ID: str
+    SUPER_ADMIN_ID: int
 
+    BOT_TOKEN: str
 
     #instead load_dotenv()
     path_root: str = str(Path(__file__).resolve().parent.parent)
