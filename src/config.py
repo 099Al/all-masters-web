@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     WEB_HOST: str
     WEB_PORT: int
 
-    MODE: str = None
+    MODE: str | None = None
 
     SUPER_ADMIN_ID: int
 

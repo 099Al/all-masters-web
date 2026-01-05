@@ -30,15 +30,26 @@ services:
 #      - web
 #    ports:
 #      - "4040:4040"
-#  tunnel:
-#    image: cloudflare/cloudflared:latest
-#    container_name: all-masters-web-tunnel
-#    depends_on:
-#      - web
-#    command: tunnel --no-autoupdate --url http://web:8000
-#    restart: unless-stopped
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: all-masters-web-tunnel
+    depends_on:
+      - web
+    command: tunnel --no-autoupdate --url http://web:8000
+    restart: unless-stopped
+    networks:
+      - all-masters-net
 
+#Эта часть использует общую сеть, созданную в другом проекте
+#Расскоментировать, если запускается после содания общей сети
+#networks:
+#  all-masters-net:
+#    external: true
+#    name: all-masters-net
+
+#При запуске через Docker, запускается в начале all-masters-web
+#Эта часть создает общую сеть
 networks:
   all-masters-net:
-    external: true
     name: all-masters-net
+    driver: bridge

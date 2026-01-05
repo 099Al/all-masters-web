@@ -10,7 +10,7 @@ from urllib.parse import parse_qsl
 
 from urllib import request
 
-from fastapi import APIRouter, Request, Depends, Response, Query
+from fastapi import APIRouter, Request, Depends, Response, Query, Path
 from fastapi.responses import HTMLResponse
 
 from fastapi.templating import Jinja2Templates
@@ -60,10 +60,10 @@ async def get_avatar(filename: str):
 
 templates = Jinja2Templates(directory="src/templates")
 
-@router_profiles.get("/", response_class=HTMLResponse)
-async def profiles(request: Request, page: int = Query(1, ge=1)):
+@router_profiles.get("/{service_id}", response_class=HTMLResponse)
+async def profiles(request: Request, service_id: int = Path(..., ge=1), page: int = Query(1, ge=1)):
     req = ReqWeb()
-    data_specialists = await req.get_active_specialists_data()
+    data_specialists = await req.get_active_specialists_data(service_id)
 
     total = len(data_specialists)
     total_pages = max(1, ceil(total / configs.PAGINATION_PER_PAGE))
