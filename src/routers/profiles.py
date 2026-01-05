@@ -211,8 +211,7 @@ async def list_user_messages(
     from sqlalchemy import select
 
     user_id = tg_user["id"]
-    print(user_id)
-    print(type(user_id))
+
     specialist_id = payload.specialist_id
 
     q = (
