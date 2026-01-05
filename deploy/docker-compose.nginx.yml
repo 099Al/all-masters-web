@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: all-masters-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    restart: unless-stopped
+    networks:
+      - all-masters-net
+
+networks:
+  all-masters-net:
+    external: true
+    name: all-masters-net
